@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "HarmonyOS Sans SC Embedded";
+  src: url("/fonts/HarmonyOS_Sans_SC_Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "HarmonyOS Sans SC Embedded";
+  src: url("/fonts/HarmonyOS_Sans_SC_Medium.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "PP Right Grotesk Wide Regular";
+  src: url("/fonts/PPRightGrotesk-WideRegular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --foreground: #0f172a;
+  --background: #f1f5f9;
+  --font-harmony-embedded: "HarmonyOS Sans SC Embedded";
+  --font-pp-right: "PP Right Grotesk Wide Regular";
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
