@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "名片制作",
@@ -16,9 +12,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className={cn("font-sans", geist.variable)}>
-      <body className="min-h-screen antialiased [font-family:'PingFang_SC','Hiragino_Sans_GB','Microsoft_YaHei','Noto_Sans_CJK_SC',system-ui,sans-serif]">
-        {children}
+    <html lang="zh-CN">
+      <body className="relative min-h-screen antialiased">
+        <div className="isolate relative flex min-h-svh flex-col">
+          {children}
+        </div>
       </body>
     </html>
   );
