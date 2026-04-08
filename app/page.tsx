@@ -130,7 +130,8 @@ export default function HomePage() {
   const [qrModules, setQrModules] = useState<QrModules | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [manualQr, setManualQr] = useState("");
-  const [exporting, setExporting] = useState(false);
+  const [exportingRgb, setExportingRgb] = useState(false);
+  const [exportingCmyk, setExportingCmyk] = useState(false);
   const [subotizDialogOpen, setSubotizDialogOpen] = useState(false);
   const qrFileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedPhoneRegion = getPhoneRegionOption(state.fields.phoneRegion);
@@ -258,7 +259,9 @@ export default function HomePage() {
     setQrError(null);
   };
 
-  const onExportPdf = async () => {
+  const onExportPdf = async (colorSpace: "rgb" | "cmyk") => {
+    const setExporting =
+      colorSpace === "cmyk" ? setExportingCmyk : setExportingRgb;
     setExporting(true);
     try {
       const response = await fetch("/api/export/pdf", {
@@ -266,7 +269,7 @@ export default function HomePage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(state),
+        body: JSON.stringify({ ...state, colorSpace }),
       });
 
       if (!response.ok) {
@@ -291,7 +294,9 @@ export default function HomePage() {
       const matched = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
       const filename = matched?.[1]
         ? decodeURIComponent(matched[1])
-        : "名片-RGB.pdf";
+        : colorSpace === "cmyk"
+          ? "名片-CMYK.pdf"
+          : "名片-RGB.pdf";
 
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -380,16 +385,29 @@ export default function HomePage() {
             <div className={styles.heroActions}>
               <button
                 type="button"
-                disabled={exporting}
-                onClick={() => void onExportPdf()}
+                disabled={exportingRgb}
+                onClick={() => void onExportPdf("rgb")}
                 className={cn(
                   styles.buttonBase,
                   styles.primaryButton,
-                  exporting && styles.buttonDisabled
+                  exportingRgb && styles.buttonDisabled
                 )}
               >
                 <DownloadIcon />
-                {exporting ? "导出中…" : "导出电子版"}
+                {exportingRgb ? "导出中…" : "导出电子版"}
+              </button>
+              <button
+                type="button"
+                disabled={exportingCmyk}
+                onClick={() => void onExportPdf("cmyk")}
+                className={cn(
+                  styles.buttonBase,
+                  styles.secondaryButton,
+                  exportingCmyk && styles.buttonDisabled
+                )}
+              >
+                <DownloadIcon />
+                {exportingCmyk ? "导出中…" : "导出印刷 PDF (CMYK)"}
               </button>
             </div>
           </div>

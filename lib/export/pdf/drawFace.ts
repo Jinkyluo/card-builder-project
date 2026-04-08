@@ -7,6 +7,12 @@ import {
   type TemplateLayout,
 } from "@/lib/layout/cardLayout";
 import {
+  getFacePdfColors,
+  getTemplateBFrontTopBarColor,
+  type PdfFillColor,
+  type PdfColorSpace,
+} from "@/lib/layout/templateColors";
+import {
   resolveBlockLineHeightPt,
   resolveBlockTopMm,
 } from "@/lib/layout/dynamicPositions";
@@ -84,7 +90,7 @@ function drawTextBlock(
   side: "front" | "back",
   state: CardState,
   block: CardFieldBlock,
-  color: string
+  color: PdfFillColor
 ): void {
   const value = resolveFieldDisplayValue(state, block.key);
   if (!value) return;
@@ -106,23 +112,32 @@ function drawTextBlock(
   doc.restore();
 }
 
+export type DrawFaceOptions = {
+  colorSpace: PdfColorSpace;
+};
+
 export function drawFace(
   doc: PDFKit.PDFDocument,
   side: "front" | "back",
   state: CardState,
-  qrModules: QrModules | null
+  qrModules: QrModules | null,
+  options: DrawFaceOptions
 ): void {
   const layout = getTemplate(state.templateId);
   const face = layout[side];
   const qrPos = layout.qr[side];
+  const pdfColors = getFacePdfColors(layout, side, options.colorSpace);
 
   doc.save();
-  doc.rect(0, 0, doc.page.width, doc.page.height).fill(face.bg);
+  doc.fillColor(pdfColors.bg).rect(0, 0, doc.page.width, doc.page.height).fill();
   doc.restore();
 
   if (layout.id === "B" && side === "front") {
     doc.save();
-    doc.rect(0, 0, doc.page.width, mmToPt(3)).fill("#334155");
+    doc
+      .fillColor(getTemplateBFrontTopBarColor(options.colorSpace))
+      .rect(0, 0, doc.page.width, mmToPt(3))
+      .fill();
     doc.restore();
   }
 
@@ -135,11 +150,18 @@ export function drawFace(
   }
 
   for (const block of face.blocks) {
-    const color = block.useMutedColor ? face.muted : face.text;
+    const color = block.useMutedColor ? pdfColors.muted : pdfColors.text;
     drawTextBlock(doc, layout, side, state, block, color);
   }
 
   if (qrPos && state.qr?.payload && qrModules) {
-    drawQr(doc, qrModules, qrPos.leftMm, qrPos.topMm, layout.qr.sizeMm);
+    drawQr(
+      doc,
+      qrModules,
+      qrPos.leftMm,
+      qrPos.topMm,
+      layout.qr.sizeMm,
+      options.colorSpace
+    );
   }
 }

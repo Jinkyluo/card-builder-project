@@ -1,5 +1,6 @@
 import type PDFDocument from "pdfkit";
 import { mmToPt } from "@/lib/layout/cardLayout";
+import { getQrModuleColor, type PdfColorSpace } from "@/lib/layout/templateColors";
 import type { QrModules } from "@/lib/qr/generate";
 
 export function drawQr(
@@ -7,7 +8,8 @@ export function drawQr(
   modules: QrModules,
   leftMm: number,
   topMm: number,
-  sizeMm: number
+  sizeMm: number,
+  colorSpace: PdfColorSpace
 ): void {
   const qrSizePt = mmToPt(sizeMm);
   const cellPt = qrSizePt / modules.size;
@@ -15,7 +17,7 @@ export function drawQr(
   const topPt = mmToPt(topMm);
 
   doc.save();
-  doc.fillColor("#000000");
+  doc.fillColor(getQrModuleColor(colorSpace));
   for (let y = 0; y < modules.size; y += 1) {
     for (let x = 0; x < modules.size; x += 1) {
       if (!modules.cells[y]?.[x]) continue;

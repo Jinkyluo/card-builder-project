@@ -4,9 +4,14 @@ import {
   CARD_HEIGHT_PT,
   CARD_WIDTH_PT,
 } from "@/lib/layout/cardLayout";
+import type { PdfColorSpace } from "@/lib/layout/templateColors";
 import { getQrModules } from "@/lib/qr/generate";
 import { drawFace } from "@/lib/export/pdf/drawFace";
 import { registerPdfFonts } from "@/lib/export/pdf/fonts";
+
+export type BuildPdfOptions = {
+  colorSpace?: PdfColorSpace;
+};
 
 function streamToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -18,7 +23,11 @@ function streamToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   });
 }
 
-export async function buildPdf(state: CardState): Promise<Buffer> {
+export async function buildPdf(
+  state: CardState,
+  options: BuildPdfOptions = {}
+): Promise<Buffer> {
+  const colorSpace = options.colorSpace ?? "rgb";
   const qrModules = state.qr?.payload
     ? await getQrModules(state.qr.payload)
     : null;
@@ -33,10 +42,10 @@ export async function buildPdf(state: CardState): Promise<Buffer> {
   registerPdfFonts(doc);
 
   doc.addPage({ margin: 0, size: [CARD_WIDTH_PT, CARD_HEIGHT_PT] });
-  drawFace(doc, "front", state, qrModules);
+  drawFace(doc, "front", state, qrModules, { colorSpace });
 
   doc.addPage({ margin: 0, size: [CARD_WIDTH_PT, CARD_HEIGHT_PT] });
-  drawFace(doc, "back", state, qrModules);
+  drawFace(doc, "back", state, qrModules, { colorSpace });
 
   return streamToBuffer(doc);
 }

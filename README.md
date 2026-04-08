@@ -14,7 +14,7 @@ A Next.js-based business card builder for editing fixed card templates, previewi
 - Preview front and back card faces in the browser
 - Upload a QR code image, decode it, and redraw it at a normalized vector size
 - Manually input QR payload text or links
-- Export a two-page vector PDF from the server
+- Export a two-page vector PDF from the server (RGB for screen, or **DeviceCMYK** for print)
 - Persist draft state in IndexedDB
 - Support multi-region phone formatting and validation
 - Support address presets for the Shoplazza template
@@ -85,6 +85,6 @@ The release version should stay aligned across:
 
 ## Notes
 
-- Current export is for digital PDF delivery only
-- Print-ready export is not implemented yet
+- **CMYK PDF**: Choose「导出印刷 PDF (CMYK)」in the UI, or POST `/api/export/pdf` with JSON body `{ ..., "colorSpace": "cmyk" }`. Template A (Shoplazza) uses press-specified CMYK values in code; Template B uses CMYK converted from the on-screen hex until separate ink values are provided.
+- **Shoplazza SVG logos** are rendered via `svg-to-pdfkit` and may remain **DeviceRGB** inside the PDF even when the rest of the page uses DeviceCMYK; embedded user images (Template B) are also typically RGB. Adjust in prepress if your printer requires all assets in CMYK.
 - The repository ignores local build output and dependencies by default
