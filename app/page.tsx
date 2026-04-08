@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DownloadIcon, EyeIcon, EyeOffIcon, LockIcon, LockOpenIcon } from "lucide-react";
+import { DownloadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import styles from "./page.module.css";
 import { CardFacePreview } from "@/components/CardFacePreview";
@@ -12,27 +12,12 @@ import {
   inferAddressPresetId,
 } from "@/lib/config/addressPresets";
 import {
-  formatLocalPhoneForDisplay,
-  formatPhoneForDisplay,
   getPhoneRegionOption,
   inferPhoneRegionAndLocalNumber,
   normalizePhoneDigits,
   PHONE_REGION_OPTIONS,
   validatePhoneForRegion,
 } from "@/lib/config/phoneRegions";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-} from "@/components/ui/input-group";
 import {
   Dialog,
   DialogDescription,
@@ -43,27 +28,16 @@ import {
 } from "@/components/ui/dialog";
 import type { CardState, TemplateId } from "@/lib/types/card";
 import { DEFAULT_FIELD_VALUES, defaultCardState } from "@/lib/types/card";
-import { getTemplate } from "@/lib/layout/cardLayout";
 import { loadDraft, saveDraft } from "@/lib/storage/idb";
 import { getQrModules, type QrModules } from "@/lib/qr/generate";
 import { decodeQrFromFile } from "@/lib/qr/decode";
-import { labelForField } from "@/lib/i18n/fieldLabels";
+import { buildExportPdfFilename } from "@/lib/export/pdf/exportFilename";
+import {
+  ShoplazzaAddressPresetBlock,
+  SidebarFieldRow,
+} from "@/components/SidebarFieldRow";
 
 const DEBOUNCE_MS = 400;
-const EMAIL_SUFFIX = "@shoplazza.com";
-const WEBSITE_OPTIONS = ["www.shoplazza.cn", "www.shoplazza.com"] as const;
-const WEBSITE_ITEMS = WEBSITE_OPTIONS.map((option) => ({
-  label: option,
-  value: option,
-}));
-const PHONE_REGION_ITEMS = PHONE_REGION_OPTIONS.map((option) => ({
-  label: `${option.dialCode} ${option.label}`,
-  value: option.id,
-}));
-const ADDRESS_PRESET_ITEMS = ADDRESS_PRESETS.map((preset) => ({
-  label: preset.label,
-  value: preset.id,
-}));
 
 function useDebouncedCallback<T extends unknown[]>(
   fn: (...args: T) => void,
@@ -136,14 +110,6 @@ export default function HomePage() {
   const qrFileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedPhoneRegion = getPhoneRegionOption(state.fields.phoneRegion);
   const isNameFieldVisible = (key: string) => state.visibility[key] !== false;
-  const emailPrefix = useMemo(() => {
-    const raw = state.fields.email ?? "";
-    if (!raw) return "";
-    if (raw.endsWith(EMAIL_SUFFIX)) {
-      return raw.slice(0, -EMAIL_SUFFIX.length);
-    }
-    return raw.split("@")[0] ?? raw;
-  }, [state.fields.email]);
   const phoneError = validatePhoneForRegion(
     state.fields.phoneRegion,
     state.fields.phone
@@ -194,15 +160,22 @@ export default function HomePage() {
     };
   }, [state.qr?.payload]);
 
-  const layout = useMemo(() => getTemplate(state.templateId), [state.templateId]);
+  type SidebarGroup = { title: string; keys: string[] };
 
-  const fieldKeys = useMemo(() => {
-    const s = new Set([...layout.frontFieldKeys, ...layout.backFieldKeys]);
+  const sidebarGroups = useMemo((): SidebarGroup[] => {
     if (state.templateId === "A") {
-      s.delete("address");
+      return [
+        { title: "基础信息", keys: ["name", "englishName", "title"] },
+        { title: "联系方式", keys: ["phone", "email", "website"] },
+        { title: "公司信息", keys: ["company"] },
+      ];
     }
-    return Array.from(s);
-  }, [layout, state.templateId]);
+    return [
+      { title: "基础信息", keys: ["name", "title", "department"] },
+      { title: "联系方式", keys: ["phone", "email"] },
+      { title: "公司信息", keys: ["company", "address", "addressExtra", "wechat"] },
+    ];
+  }, [state.templateId]);
 
   const setTemplate = (id: TemplateId) => {
     const ok = window.confirm(
@@ -294,9 +267,7 @@ export default function HomePage() {
       const matched = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
       const filename = matched?.[1]
         ? decodeURIComponent(matched[1])
-        : colorSpace === "cmyk"
-          ? "名片-CMYK.pdf"
-          : "名片-RGB.pdf";
+        : buildExportPdfFilename(state, colorSpace);
 
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -415,301 +386,43 @@ export default function HomePage() {
 
         <div className={styles.contentArea}>
           <aside className={styles.sidebar}>
-            <section className={styles.surfaceCard} id="content">
-              <div className={styles.sectionHeader}>
-                <div className={styles.sectionTitleWrap}>
-                  <h2 className={styles.sectionTitle}>内容</h2>
-                </div>
-              </div>
-
+            <section className={styles.surfaceCard} id="content" aria-label="内容">
               <div className={styles.fieldStack}>
-                {fieldKeys.map((key) => (
-                  <div key={key} className={styles.fieldBlock}>
-                    {key === "phone" ? (
-                      <>
-                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-                        <div className={styles.phoneRow}>
-                          <Select
-                            items={PHONE_REGION_ITEMS}
-                            value={state.fields.phoneRegion ?? ""}
-                            onValueChange={(phoneRegion) =>
-                              setState((s) => ({
-                                ...s,
-                                fields: {
-                                  ...s.fields,
-                                  phoneRegion:
-                                    phoneRegion ?? s.fields.phoneRegion ?? selectedPhoneRegion.id,
-                                },
-                              }))
-                            }
-                          >
-                            <SelectTrigger
-                              aria-label="选择电话号码地区"
-                              className={cn(styles.selectTrigger, styles.phoneCodeTrigger)}
-                            >
-                              <SelectValue className={styles.selectValue}>
-                                {(value) =>
-                                  getPhoneRegionOption(String(value ?? state.fields.phoneRegion))
-                                    .dialCode
-                                }
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectPopup className={styles.selectPopupList}>
-                              {PHONE_REGION_OPTIONS.map((option) => (
-                                <SelectItem
-                                  key={option.id}
-                                  value={option.id}
-                                  className={styles.selectPopupItem}
-                                >
-                                  {option.dialCode} {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectPopup>
-                          </Select>
-                          <div className={styles.controlShell}>
-                            <input
-                              className={styles.control}
-                              placeholder={formatLocalPhoneForDisplay(
-                                state.fields.phoneRegion,
-                                DEFAULT_FIELD_VALUES.phone
-                              )}
-                              value={formatLocalPhoneForDisplay(
-                                state.fields.phoneRegion,
-                                state.fields.phone
-                              )}
-                              onChange={(ev) =>
-                                setState((s) => ({
-                                  ...s,
-                                  fields: {
-                                    ...s.fields,
-                                    phone: normalizePhoneDigits(ev.target.value),
-                                  },
-                                }))
-                              }
-                            />
-                          </div>
+                {sidebarGroups.map((group) => (
+                  <div key={group.title} className={styles.fieldGroup}>
+                    <div className={styles.fieldGroupFields}>
+                      {group.keys.map((key) => (
+                        <div key={key} className={styles.fieldBlock}>
+                          <SidebarFieldRow
+                            fieldKey={key}
+                            state={state}
+                            setState={setState}
+                            phoneError={phoneError}
+                            selectedPhoneRegion={selectedPhoneRegion}
+                            isNameFieldVisible={isNameFieldVisible}
+                          />
                         </div>
-                        {phoneError && (
-                          <p className={cn(styles.helperText, styles.errorText)}>
-                            {phoneError}
-                          </p>
-                        )}
-                      </>
-                    ) : key === "website" ? (
-                      <>
-                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-                        <Select
-                          aria-label="选择网站"
-                          items={WEBSITE_ITEMS}
-                          value={state.fields.website || DEFAULT_FIELD_VALUES.website}
-                          onValueChange={(website) =>
-                            setState((s) => ({
-                              ...s,
-                              fields: {
-                                ...s.fields,
-                                website: website ?? s.fields.website ?? DEFAULT_FIELD_VALUES.website,
-                              },
-                            }))
-                          }
-                        >
-                          <SelectTrigger className={styles.selectTrigger}>
-                            <SelectValue className={styles.selectValue} />
-                          </SelectTrigger>
-                          <SelectPopup className={styles.selectPopupList}>
-                            {WEBSITE_OPTIONS.map((option) => (
-                              <SelectItem
-                                key={option}
-                                value={option}
-                                className={styles.selectPopupItem}
-                              >
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectPopup>
-                        </Select>
-                      </>
-                    ) : key === "email" ? (
-                      <>
-                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-                        <InputGroup className={styles.inputGroupField}>
-                          <InputGroupInput
-                            className={styles.inputGroupInput}
-                            placeholder={(DEFAULT_FIELD_VALUES.email ?? "").replace(EMAIL_SUFFIX, "")}
-                            value={emailPrefix}
-                            autoComplete="off"
-                            autoCorrect="off"
-                            autoCapitalize="none"
-                            spellCheck={false}
-                            inputMode="email"
-                            name="email-prefix"
-                            onChange={(ev) =>
-                              setState((s) => ({
-                                ...s,
-                                fields: {
-                                  ...s.fields,
-                                  email: ev.target.value.trim()
-                                    ? `${ev.target.value.trim()}${EMAIL_SUFFIX}`
-                                    : "",
-                                },
-                              }))
-                            }
-                          />
-                          <InputGroupAddon
-                            align="inline-end"
-                            className={styles.inputGroupSuffixAddon}
-                          >
-                            <InputGroupText className={styles.inputGroupSuffixText}>
-                              {EMAIL_SUFFIX}
-                            </InputGroupText>
-                          </InputGroupAddon>
-                        </InputGroup>
-                      </>
-                    ) : key === "company" ? (
-                      <>
-                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-                        <InputGroup className={styles.inputGroupField}>
-                          <InputGroupInput
-                            className={styles.inputGroupInput}
-                            placeholder={
-                              DEFAULT_FIELD_VALUES[
-                                key as keyof typeof DEFAULT_FIELD_VALUES
-                              ] ?? ""
-                            }
-                            value={state.fields[key] ?? ""}
-                            disabled={state.locks.company !== false}
-                            onChange={(ev) =>
-                              setState((s) => ({
-                                ...s,
-                                fields: { ...s.fields, [key]: ev.target.value },
-                              }))
-                            }
-                          />
-                          <InputGroupAddon
-                            align="inline-end"
-                            className={styles.inputGroupActionAddon}
-                          >
-                            <button
-                              type="button"
-                              className={styles.inputGroupActionButton}
-                              aria-label={`${state.locks.company !== false ? "解锁" : "锁定"}公司名称编辑`}
-                              aria-pressed={state.locks.company === false}
-                              onClick={() =>
-                                setState((s) => ({
-                                  ...s,
-                                  locks: {
-                                    ...s.locks,
-                                    company: s.locks.company === false,
-                                  },
-                                }))
-                              }
-                            >
-                              {state.locks.company !== false ? <LockIcon /> : <LockOpenIcon />}
-                            </button>
-                          </InputGroupAddon>
-                        </InputGroup>
-                      </>
-                    ) : (
-                      <>
-                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-                        {(key === "name" || key === "englishName") ? (
-                          <InputGroup className={styles.inputGroupField}>
-                            <InputGroupInput
-                              className={styles.inputGroupInput}
-                              placeholder={
-                                DEFAULT_FIELD_VALUES[
-                                  key as keyof typeof DEFAULT_FIELD_VALUES
-                                ] ?? ""
-                              }
-                              value={state.fields[key] ?? ""}
-                              onChange={(ev) =>
-                                setState((s) => ({
-                                  ...s,
-                                  fields: { ...s.fields, [key]: ev.target.value },
-                                }))
-                              }
-                            />
-                            <InputGroupAddon
-                              align="inline-end"
-                              className={styles.inputGroupActionAddon}
-                            >
-                              <button
-                                type="button"
-                                className={styles.inputGroupActionButton}
-                                aria-label={`${isNameFieldVisible(key) ? "隐藏" : "显示"}${labelForField(key)}`}
-                                aria-pressed={isNameFieldVisible(key)}
-                                onClick={() =>
-                                  setState((s) => ({
-                                    ...s,
-                                    visibility: {
-                                      ...s.visibility,
-                                      [key]: s.visibility[key] === false,
-                                    },
-                                  }))
-                                }
-                              >
-                                {isNameFieldVisible(key) ? <EyeIcon /> : <EyeOffIcon />}
-                              </button>
-                            </InputGroupAddon>
-                          </InputGroup>
-                        ) : (
-                          <div className={styles.controlShell}>
-                            <input
-                              className={styles.control}
-                              placeholder={
-                                DEFAULT_FIELD_VALUES[
-                                  key as keyof typeof DEFAULT_FIELD_VALUES
-                                ] ?? ""
-                              }
-                              value={state.fields[key] ?? ""}
-                              onChange={(ev) =>
-                                setState((s) => ({
-                                  ...s,
-                                  fields: { ...s.fields, [key]: ev.target.value },
-                                }))
-                              }
-                            />
+                      ))}
+                      {state.templateId === "A" && group.title === "公司信息" && (
+                        <>
+                          <div className={styles.fieldBlock}>
+                            <ShoplazzaAddressPresetBlock state={state} setState={setState} />
                           </div>
-                        )}
-                      </>
-                    )}
-
-                    {state.templateId === "A" && key === "company" && (
-                      <div className={styles.fieldBlock}>
-                        <span className={styles.fieldLabel}>地址地区</span>
-                        <Select
-                          aria-label="选择地址地区"
-                          items={ADDRESS_PRESET_ITEMS}
-                          value={state.fields.addressPreset ?? ""}
-                          onValueChange={(nextAddressPreset) => {
-                            const addressPreset =
-                              nextAddressPreset ?? state.fields.addressPreset ?? "";
-                            setState((s) => ({
-                              ...s,
-                              fields: {
-                                ...s.fields,
-                                addressPreset,
-                                address: buildAddressText(addressPreset),
-                              },
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className={styles.selectTrigger}>
-                            <SelectValue className={styles.selectValue} />
-                          </SelectTrigger>
-                          <SelectPopup className={styles.selectPopupList}>
-                            {ADDRESS_PRESETS.map((preset) => (
-                              <SelectItem
-                                key={preset.id}
-                                value={preset.id}
-                                className={styles.selectPopupItem}
-                              >
-                                {preset.label}
-                              </SelectItem>
-                            ))}
-                          </SelectPopup>
-                        </Select>
-                      </div>
-                    )}
+                          {state.fields.addressPreset === "none" && (
+                            <div className={styles.fieldBlock}>
+                              <SidebarFieldRow
+                                fieldKey="addressExtra"
+                                state={state}
+                                setState={setState}
+                                phoneError={phoneError}
+                                selectedPhoneRegion={selectedPhoneRegion}
+                                isNameFieldVisible={isNameFieldVisible}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -766,13 +479,7 @@ export default function HomePage() {
               </section>
             )}
 
-            <section className={styles.surfaceCard} id="qr">
-              <div className={styles.sectionHeader}>
-                <div className={styles.sectionTitleWrap}>
-                  <h2 className={styles.sectionTitle}>二维码</h2>
-                </div>
-              </div>
-
+            <section className={styles.surfaceCard} id="qr" aria-label="二维码">
               <div className={styles.fieldStack}>
                 <div className={styles.uploadRow}>
                   <input
@@ -809,10 +516,10 @@ export default function HomePage() {
                 )}
 
                 <div className={styles.fieldBlock}>
-                  <span className={styles.fieldLabel}>二维码内容</span>
                   <div className={styles.controlShell}>
                     <input
                       className={styles.control}
+                      aria-label="二维码内容"
                       placeholder="输入链接、名片地址或任意文本"
                       value={manualQr}
                       onChange={(e) => setManualQr(e.target.value)}

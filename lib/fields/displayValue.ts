@@ -2,6 +2,9 @@ import { formatPhoneForDisplay } from "@/lib/config/phoneRegions";
 import { DEFAULT_FIELD_VALUES, type CardState } from "@/lib/types/card";
 
 export function resolveFieldLayoutValue(state: CardState, key: string): string {
+  if (key === "contactNote" || key === "addressExtra") {
+    return (state.fields[key] ?? "").trim();
+  }
   if (key === "phone") {
     const phone = state.fields.phone || DEFAULT_FIELD_VALUES.phone;
     return formatPhoneForDisplay(state.fields.phoneRegion, phone);

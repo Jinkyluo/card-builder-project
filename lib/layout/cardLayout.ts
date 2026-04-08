@@ -64,7 +64,6 @@ export const templateA: TemplateLayout = {
     "email",
     "website",
     "company",
-    "address",
   ],
   backFieldKeys: [],
   qr: {
@@ -136,6 +135,13 @@ export const templateA: TemplateLayout = {
         fontSizePt: 6.5,
         fontFamily: "harmony",
       },
+      {
+        key: "addressExtra",
+        leftMm: 50.97,
+        topMm: 50.34,
+        fontSizePt: 6.5,
+        fontFamily: "harmony",
+      },
     ],
   },
   back: {
@@ -152,7 +158,7 @@ export const templateB: TemplateLayout = {
   id: "B",
   name: "Subotiz 名片",
   frontFieldKeys: ["name", "title", "department", "phone", "email"],
-  backFieldKeys: ["company", "address", "wechat"],
+  backFieldKeys: ["company", "address", "addressExtra", "wechat"],
   qr: {
     sizeMm: QR_SIZE_MM_DEFAULT,
     front: null,
@@ -179,6 +185,7 @@ export const templateB: TemplateLayout = {
     blocks: [
       { key: "company", leftMm: 8, topMm: 22, fontSizePt: 9, fontWeight: 600 },
       { key: "address", leftMm: 8, topMm: 34, fontSizePt: 7, maxWidthMm: 52 },
+      { key: "addressExtra", leftMm: 8, topMm: 40, fontSizePt: 7, maxWidthMm: 52 },
       { key: "wechat", leftMm: 8, topMm: 46, fontSizePt: 7 },
     ],
   },

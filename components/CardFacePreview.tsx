@@ -87,6 +87,12 @@ function FaceContent({
 
       {face.blocks.map((b) => {
         const text = resolveFieldDisplayValue(state, b.key);
+        if (
+          (b.key === "address" || b.key === "addressExtra") &&
+          !text.trim()
+        ) {
+          return null;
+        }
         const color = b.useMutedColor ? face.muted : face.text;
         return (
           <div
@@ -151,7 +157,7 @@ function FaceContent({
       {qrPos && !payload && onQrPlaceholderClick && (
         <button
           type="button"
-          className="absolute grid place-items-center rounded-[1.6mm] border border-dashed border-black/20 bg-white/22 px-[1.2mm] text-center text-[4.2pt] leading-tight font-medium text-black/42 transition-colors hover:bg-white/36 hover:text-black/58"
+          className="absolute grid cursor-pointer place-items-center rounded-[1.6mm] border border-dashed border-black/20 bg-white/22 px-[1.2mm] text-center text-[4.2pt] leading-tight font-medium text-black/42 transition-colors hover:bg-white/36 hover:text-black/58"
           style={{
             left: `${qrPos.leftMm}mm`,
             top: `${qrPos.topMm}mm`,

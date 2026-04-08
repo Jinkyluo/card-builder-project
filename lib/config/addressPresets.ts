@@ -1,4 +1,5 @@
 export type AddressPresetId =
+  | "none"
   | "sz-nanshan"
   | "sz-nanshan-longgang"
   | "sz-guangzhou"
@@ -32,15 +33,17 @@ export const ADDRESS_PRESETS: AddressPreset[] = [
   { id: "sz-kunming", label: "深圳 + 昆明", cities: ["深圳", "昆明"] },
   { id: "sz-wuhan", label: "深圳 + 武汉", cities: ["深圳", "武汉"] },
   { id: "sz-shanghai", label: "深圳 + 上海", cities: ["深圳", "上海"] },
+  { id: "none", label: "自定义输入", cities: [] },
 ];
 
 export const DEFAULT_ADDRESS_PRESET: AddressPresetId = "sz-nanshan";
 
 export function getAddressPreset(id: string | undefined): AddressPreset {
-  return (
-    ADDRESS_PRESETS.find((item) => item.id === id) ??
-    ADDRESS_PRESETS[0]
-  );
+  if (id) {
+    const found = ADDRESS_PRESETS.find((item) => item.id === id);
+    if (found) return found;
+  }
+  return ADDRESS_PRESETS.find((item) => item.id === DEFAULT_ADDRESS_PRESET)!;
 }
 
 export function buildAddressText(id: string | undefined): string {
@@ -53,6 +56,7 @@ export function buildAddressText(id: string | undefined): string {
 
 export function inferAddressPresetId(addressText: string | undefined): AddressPresetId {
   const normalized = (addressText ?? "").trim();
+  if (normalized === "") return "none";
   const match = ADDRESS_PRESETS.find((preset) => {
     const expected = buildAddressText(preset.id);
     return expected === normalized;

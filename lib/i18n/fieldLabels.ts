@@ -13,6 +13,8 @@ export const FIELD_LABELS: Record<string, string> = {
   tagline: "标语",
   department: "部门",
   wechat: "微信",
+  contactNote: "补充信息",
+  addressExtra: "自定义地址",
 };
 
 export function labelForField(key: string): string {

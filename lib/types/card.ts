@@ -40,6 +40,8 @@ export const defaultCardState = (): CardState => ({
     addressPreset: DEFAULT_ADDRESS_PRESET,
     address: buildAddressText(DEFAULT_ADDRESS_PRESET),
     website: "",
+    contactNote: "",
+    addressExtra: "",
     tagline: "让协作更简单",
     department: "研发中心",
     wechat: "wechat_id",

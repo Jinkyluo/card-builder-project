@@ -63,14 +63,15 @@ function resolveBlockLeftMmForPdf(
     return nameBlock.leftMm + nameWidthMm + ENGLISH_NAME_GAP_MM;
   }
 
-  if (block.key !== "company" && block.key !== "address") {
+  if (block.key !== "company" && block.key !== "address" && block.key !== "addressExtra") {
     return block.leftMm;
   }
 
   const qrPos = layout.qr.front;
   const companyBlock = layout.front.blocks.find((item) => item.key === "company");
   const addressBlock = layout.front.blocks.find((item) => item.key === "address");
-  if (!qrPos || !companyBlock || !addressBlock) {
+  const addressExtraBlock = layout.front.blocks.find((item) => item.key === "addressExtra");
+  if (!qrPos || !companyBlock || !addressBlock || !addressExtraBlock) {
     return block.leftMm;
   }
 
@@ -80,8 +81,11 @@ function resolveBlockLeftMmForPdf(
   const addressWidthMm = ptToMm(
     measureBlockWidthPt(doc, addressBlock, resolveFieldDisplayValue(state, "address"))
   );
+  const extraWidthMm = ptToMm(
+    measureBlockWidthPt(doc, addressExtraBlock, resolveFieldDisplayValue(state, "addressExtra"))
+  );
   const qrRightMm = qrPos.leftMm + layout.qr.sizeMm;
-  return qrRightMm - Math.max(companyWidthMm, addressWidthMm);
+  return qrRightMm - Math.max(companyWidthMm, addressWidthMm, extraWidthMm);
 }
 
 function drawTextBlock(
