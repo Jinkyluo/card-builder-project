@@ -9,6 +9,8 @@ export type TemplateId = "A" | "B";
 export type CardState = {
   templateId: TemplateId;
   fields: Record<string, string>;
+  visibility: Record<string, boolean>;
+  locks: Record<string, boolean>;
   assets: {
     logoDataUrl?: string;
   };
@@ -41,6 +43,13 @@ export const defaultCardState = (): CardState => ({
     tagline: "让协作更简单",
     department: "研发中心",
     wechat: "wechat_id",
+  },
+  visibility: {
+    name: true,
+    englishName: true,
+  },
+  locks: {
+    company: true,
   },
   assets: {},
   qr: null,

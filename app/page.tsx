@@ -1,6 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DownloadIcon, EyeIcon, EyeOffIcon, LockIcon, LockOpenIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import styles from "./page.module.css";
 import { CardFacePreview } from "@/components/CardFacePreview";
 import {
   ADDRESS_PRESETS,
@@ -16,21 +20,50 @@ import {
   PHONE_REGION_OPTIONS,
   validatePhoneForRegion,
 } from "@/lib/config/phoneRegions";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { CardState, TemplateId } from "@/lib/types/card";
 import { DEFAULT_FIELD_VALUES, defaultCardState } from "@/lib/types/card";
-import { getTemplate, TEMPLATES } from "@/lib/layout/cardLayout";
-import {
-  loadDraft,
-  saveDraft,
-} from "@/lib/storage/idb";
-import {
-  getQrModules,
-  type QrModules,
-} from "@/lib/qr/generate";
+import { getTemplate } from "@/lib/layout/cardLayout";
+import { loadDraft, saveDraft } from "@/lib/storage/idb";
+import { getQrModules, type QrModules } from "@/lib/qr/generate";
 import { decodeQrFromFile } from "@/lib/qr/decode";
 import { labelForField } from "@/lib/i18n/fieldLabels";
 
 const DEBOUNCE_MS = 400;
+const EMAIL_SUFFIX = "@shoplazza.com";
+const WEBSITE_OPTIONS = ["www.shoplazza.cn", "www.shoplazza.com"] as const;
+const WEBSITE_ITEMS = WEBSITE_OPTIONS.map((option) => ({
+  label: option,
+  value: option,
+}));
+const PHONE_REGION_ITEMS = PHONE_REGION_OPTIONS.map((option) => ({
+  label: `${option.dialCode} ${option.label}`,
+  value: option.id,
+}));
+const ADDRESS_PRESET_ITEMS = ADDRESS_PRESETS.map((preset) => ({
+  label: preset.label,
+  value: preset.id,
+}));
 
 function useDebouncedCallback<T extends unknown[]>(
   fn: (...args: T) => void,
@@ -61,6 +94,13 @@ function normalizeCardState(raw: CardState): CardState {
     avatarDataUrl?: string;
   };
   delete assets.avatarDataUrl;
+  const visibility = {
+    name: raw.visibility?.name !== false,
+    englishName: raw.visibility?.englishName !== false,
+  };
+  const locks = {
+    company: raw.locks?.company !== false,
+  };
   const addressPreset = raw.fields.addressPreset || inferAddressPresetId(raw.fields.address);
   const normalizedPhone = raw.fields.phoneRegion
     ? {
@@ -79,6 +119,8 @@ function normalizeCardState(raw: CardState): CardState {
       phoneRegion: normalizedPhone.phoneRegion,
       phone: normalizedPhone.phone,
     },
+    visibility,
+    locks,
   };
 }
 
@@ -89,10 +131,18 @@ export default function HomePage() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [manualQr, setManualQr] = useState("");
   const [exporting, setExporting] = useState(false);
-  const formattedPhone = formatPhoneForDisplay(
-    state.fields.phoneRegion,
-    state.fields.phone || DEFAULT_FIELD_VALUES.phone
-  );
+  const [subotizDialogOpen, setSubotizDialogOpen] = useState(false);
+  const qrFileInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedPhoneRegion = getPhoneRegionOption(state.fields.phoneRegion);
+  const isNameFieldVisible = (key: string) => state.visibility[key] !== false;
+  const emailPrefix = useMemo(() => {
+    const raw = state.fields.email ?? "";
+    if (!raw) return "";
+    if (raw.endsWith(EMAIL_SUFFIX)) {
+      return raw.slice(0, -EMAIL_SUFFIX.length);
+    }
+    return raw.split("@")[0] ?? raw;
+  }, [state.fields.email]);
   const phoneError = validatePhoneForRegion(
     state.fields.phoneRegion,
     state.fields.phone
@@ -146,10 +196,7 @@ export default function HomePage() {
   const layout = useMemo(() => getTemplate(state.templateId), [state.templateId]);
 
   const fieldKeys = useMemo(() => {
-    const s = new Set([
-      ...layout.frontFieldKeys,
-      ...layout.backFieldKeys,
-    ]);
+    const s = new Set([...layout.frontFieldKeys, ...layout.backFieldKeys]);
     if (state.templateId === "A") {
       s.delete("address");
     }
@@ -173,6 +220,8 @@ export default function HomePage() {
       next.fields.company = merged.company || "深圳店匠科技有限公司";
     }
     next.assets = { ...state.assets };
+    next.visibility = { ...state.visibility };
+    next.locks = { ...state.locks };
     next.qr = state.qr;
     setState(next);
   };
@@ -194,6 +243,10 @@ export default function HomePage() {
       setQrError("读取图片失败。");
     }
   };
+
+  const openQrPicker = useCallback(() => {
+    qrFileInputRef.current?.click();
+  }, []);
 
   const applyManualQr = () => {
     const t = manualQr.trim();
@@ -258,285 +311,560 @@ export default function HomePage() {
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-600">
-        加载中…
-      </div>
+      <main className={styles.page}>
+        <div className={styles.loadingShell}>
+          <div className={styles.loadingCard}>加载中…</div>
+        </div>
+      </main>
     );
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-slate-50">
-      <div className="mx-auto flex h-full max-w-7xl flex-col px-4 py-6">
-        <header className="sticky top-0 z-20 mb-6 flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 pb-5">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">名片制作</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              固定模板编辑 · 二维码上传解码后按统一尺寸重绘
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={exporting}
-            onClick={() => void onExportPdf()}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {exporting ? "导出中…" : "导出电子版"}
-          </button>
-        </header>
+    <main className={styles.page} id="top">
+      <div className={styles.shell}>
+        <div aria-hidden="true" className={styles.pageGuides}>
+          <span className={styles.pageGuideLineLeft} />
+          <span className={styles.pageGuideLineRight} />
+        </div>
+        <section className={styles.hero}>
+          <div className={styles.heroHeader}>
+            <span aria-hidden="true" className={styles.heroGuideLineLeft} />
+            <span aria-hidden="true" className={styles.heroGuideLineRight} />
+            <span aria-hidden="true" className={styles.heroGuideNodeLeft} />
+            <span aria-hidden="true" className={styles.heroGuideNodeRight} />
+            <a href="#top" className={styles.brandLink}>
+              <Image
+                src="/design/logo-red.svg"
+                alt="Shoplazza"
+                width={127}
+                height={30}
+                className={styles.brandLogo}
+                priority
+              />
+              <span className={styles.brandText}>Card Builder</span>
+            </a>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:items-stretch">
-          <div className="h-full min-h-0 w-[300px] max-w-full shrink-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-800">模板</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(Object.keys(TEMPLATES) as TemplateId[]).map((id) => {
-                const disabled = id === "B";
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => id !== state.templateId && setTemplate(id)}
-                    className={`rounded-md px-3 py-1.5 text-sm ${
-                      disabled
-                        ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                        : state.templateId === id
-                          ? "bg-slate-900 text-white"
-                          : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                    }`}
-                  >
-                    {TEMPLATES[id].name}
-                    {disabled ? "（搭建中）" : ""}
-                  </button>
-                );
-              })}
+            <div className={styles.heroCenter}>
+              <div className={styles.templateSwitch} aria-label="模板切换">
+                {(["A", "B"] as TemplateId[]).map((id) => {
+                  const active = state.templateId === id;
+                  const label = id === "A" ? "Shoplazza" : "Subotiz";
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        if (id === "B") {
+                          setSubotizDialogOpen(true);
+                          return;
+                        }
+                        if (id !== state.templateId) {
+                          setTemplate(id);
+                        }
+                      }}
+                      className={cn(
+                        styles.templateSwitchButton,
+                        active &&
+                          (id === "A"
+                            ? styles.templateSwitchButtonShoplazzaActive
+                            : styles.templateSwitchButtonSubotizActive)
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-800">内容</h2>
-            <div className="mt-3 grid gap-3">
-              {fieldKeys.map((key) => (
-                <div key={key} className="min-w-0">
-                  {key === "phone" ? (
-                    <label className="block min-w-0 text-xs text-slate-600">
-                      <span className="mb-1 block">{labelForField(key)}</span>
-                      <div className="flex min-w-0 gap-2">
-                        <select
-                          className="w-32 shrink-0 rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-                          value={state.fields.phoneRegion ?? ""}
-                          onChange={(ev) =>
+            <div className={styles.heroActions}>
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={() => void onExportPdf()}
+                className={cn(
+                  styles.buttonBase,
+                  styles.primaryButton,
+                  exporting && styles.buttonDisabled
+                )}
+              >
+                <DownloadIcon />
+                {exporting ? "导出中…" : "导出电子版"}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div className={styles.contentArea}>
+          <aside className={styles.sidebar}>
+            <section className={styles.surfaceCard} id="content">
+              <div className={styles.sectionHeader}>
+                <div className={styles.sectionTitleWrap}>
+                  <h2 className={styles.sectionTitle}>内容</h2>
+                </div>
+              </div>
+
+              <div className={styles.fieldStack}>
+                {fieldKeys.map((key) => (
+                  <div key={key} className={styles.fieldBlock}>
+                    {key === "phone" ? (
+                      <>
+                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+                        <div className={styles.phoneRow}>
+                          <Select
+                            items={PHONE_REGION_ITEMS}
+                            value={state.fields.phoneRegion ?? ""}
+                            onValueChange={(phoneRegion) =>
+                              setState((s) => ({
+                                ...s,
+                                fields: {
+                                  ...s.fields,
+                                  phoneRegion:
+                                    phoneRegion ?? s.fields.phoneRegion ?? selectedPhoneRegion.id,
+                                },
+                              }))
+                            }
+                          >
+                            <SelectTrigger
+                              aria-label="选择电话号码地区"
+                              className={cn(styles.selectTrigger, styles.phoneCodeTrigger)}
+                            >
+                              <SelectValue className={styles.selectValue}>
+                                {(value) =>
+                                  getPhoneRegionOption(String(value ?? state.fields.phoneRegion))
+                                    .dialCode
+                                }
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectPopup className={styles.selectPopupList}>
+                              {PHONE_REGION_OPTIONS.map((option) => (
+                                <SelectItem
+                                  key={option.id}
+                                  value={option.id}
+                                  className={styles.selectPopupItem}
+                                >
+                                  {option.dialCode} {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectPopup>
+                          </Select>
+                          <div className={styles.controlShell}>
+                            <input
+                              className={styles.control}
+                              placeholder={formatLocalPhoneForDisplay(
+                                state.fields.phoneRegion,
+                                DEFAULT_FIELD_VALUES.phone
+                              )}
+                              value={formatLocalPhoneForDisplay(
+                                state.fields.phoneRegion,
+                                state.fields.phone
+                              )}
+                              onChange={(ev) =>
+                                setState((s) => ({
+                                  ...s,
+                                  fields: {
+                                    ...s.fields,
+                                    phone: normalizePhoneDigits(ev.target.value),
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+                        {phoneError && (
+                          <p className={cn(styles.helperText, styles.errorText)}>
+                            {phoneError}
+                          </p>
+                        )}
+                      </>
+                    ) : key === "website" ? (
+                      <>
+                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+                        <Select
+                          aria-label="选择网站"
+                          items={WEBSITE_ITEMS}
+                          value={state.fields.website || DEFAULT_FIELD_VALUES.website}
+                          onValueChange={(website) =>
                             setState((s) => ({
                               ...s,
                               fields: {
                                 ...s.fields,
-                                phoneRegion: ev.target.value,
+                                website: website ?? s.fields.website ?? DEFAULT_FIELD_VALUES.website,
                               },
                             }))
                           }
                         >
-                          {PHONE_REGION_OPTIONS.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.dialCode} {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-                          placeholder={formatLocalPhoneForDisplay(
-                            state.fields.phoneRegion,
-                            DEFAULT_FIELD_VALUES.phone
-                          )}
-                          value={formatLocalPhoneForDisplay(
-                            state.fields.phoneRegion,
-                            state.fields.phone
-                          )}
-                          onChange={(ev) =>
+                          <SelectTrigger className={styles.selectTrigger}>
+                            <SelectValue className={styles.selectValue} />
+                          </SelectTrigger>
+                          <SelectPopup className={styles.selectPopupList}>
+                            {WEBSITE_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option}
+                                value={option}
+                                className={styles.selectPopupItem}
+                              >
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectPopup>
+                        </Select>
+                      </>
+                    ) : key === "email" ? (
+                      <>
+                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+                        <InputGroup className={styles.inputGroupField}>
+                          <InputGroupInput
+                            className={styles.inputGroupInput}
+                            placeholder={(DEFAULT_FIELD_VALUES.email ?? "").replace(EMAIL_SUFFIX, "")}
+                            value={emailPrefix}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            spellCheck={false}
+                            inputMode="email"
+                            name="email-prefix"
+                            onChange={(ev) =>
+                              setState((s) => ({
+                                ...s,
+                                fields: {
+                                  ...s.fields,
+                                  email: ev.target.value.trim()
+                                    ? `${ev.target.value.trim()}${EMAIL_SUFFIX}`
+                                    : "",
+                                },
+                              }))
+                            }
+                          />
+                          <InputGroupAddon
+                            align="inline-end"
+                            className={styles.inputGroupSuffixAddon}
+                          >
+                            <InputGroupText className={styles.inputGroupSuffixText}>
+                              {EMAIL_SUFFIX}
+                            </InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </>
+                    ) : key === "company" ? (
+                      <>
+                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+                        <InputGroup className={styles.inputGroupField}>
+                          <InputGroupInput
+                            className={styles.inputGroupInput}
+                            placeholder={
+                              DEFAULT_FIELD_VALUES[
+                                key as keyof typeof DEFAULT_FIELD_VALUES
+                              ] ?? ""
+                            }
+                            value={state.fields[key] ?? ""}
+                            disabled={state.locks.company !== false}
+                            onChange={(ev) =>
+                              setState((s) => ({
+                                ...s,
+                                fields: { ...s.fields, [key]: ev.target.value },
+                              }))
+                            }
+                          />
+                          <InputGroupAddon
+                            align="inline-end"
+                            className={styles.inputGroupActionAddon}
+                          >
+                            <button
+                              type="button"
+                              className={styles.inputGroupActionButton}
+                              aria-label={`${state.locks.company !== false ? "解锁" : "锁定"}公司名称编辑`}
+                              aria-pressed={state.locks.company === false}
+                              onClick={() =>
+                                setState((s) => ({
+                                  ...s,
+                                  locks: {
+                                    ...s.locks,
+                                    company: s.locks.company === false,
+                                  },
+                                }))
+                              }
+                            >
+                              {state.locks.company !== false ? <LockIcon /> : <LockOpenIcon />}
+                            </button>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </>
+                    ) : (
+                      <>
+                        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+                        {(key === "name" || key === "englishName") ? (
+                          <InputGroup className={styles.inputGroupField}>
+                            <InputGroupInput
+                              className={styles.inputGroupInput}
+                              placeholder={
+                                DEFAULT_FIELD_VALUES[
+                                  key as keyof typeof DEFAULT_FIELD_VALUES
+                                ] ?? ""
+                              }
+                              value={state.fields[key] ?? ""}
+                              onChange={(ev) =>
+                                setState((s) => ({
+                                  ...s,
+                                  fields: { ...s.fields, [key]: ev.target.value },
+                                }))
+                              }
+                            />
+                            <InputGroupAddon
+                              align="inline-end"
+                              className={styles.inputGroupActionAddon}
+                            >
+                              <button
+                                type="button"
+                                className={styles.inputGroupActionButton}
+                                aria-label={`${isNameFieldVisible(key) ? "隐藏" : "显示"}${labelForField(key)}`}
+                                aria-pressed={isNameFieldVisible(key)}
+                                onClick={() =>
+                                  setState((s) => ({
+                                    ...s,
+                                    visibility: {
+                                      ...s.visibility,
+                                      [key]: s.visibility[key] === false,
+                                    },
+                                  }))
+                                }
+                              >
+                                {isNameFieldVisible(key) ? <EyeIcon /> : <EyeOffIcon />}
+                              </button>
+                            </InputGroupAddon>
+                          </InputGroup>
+                        ) : (
+                          <div className={styles.controlShell}>
+                            <input
+                              className={styles.control}
+                              placeholder={
+                                DEFAULT_FIELD_VALUES[
+                                  key as keyof typeof DEFAULT_FIELD_VALUES
+                                ] ?? ""
+                              }
+                              value={state.fields[key] ?? ""}
+                              onChange={(ev) =>
+                                setState((s) => ({
+                                  ...s,
+                                  fields: { ...s.fields, [key]: ev.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {state.templateId === "A" && key === "company" && (
+                      <div className={styles.fieldBlock}>
+                        <span className={styles.fieldLabel}>地址地区</span>
+                        <Select
+                          aria-label="选择地址地区"
+                          items={ADDRESS_PRESET_ITEMS}
+                          value={state.fields.addressPreset ?? ""}
+                          onValueChange={(nextAddressPreset) => {
+                            const addressPreset =
+                              nextAddressPreset ?? state.fields.addressPreset ?? "";
                             setState((s) => ({
                               ...s,
                               fields: {
                                 ...s.fields,
-                                phone: normalizePhoneDigits(ev.target.value),
+                                addressPreset,
+                                address: buildAddressText(addressPreset),
                               },
-                            }))
-                          }
-                        />
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className={styles.selectTrigger}>
+                            <SelectValue className={styles.selectValue} />
+                          </SelectTrigger>
+                          <SelectPopup className={styles.selectPopupList}>
+                            {ADDRESS_PRESETS.map((preset) => (
+                              <SelectItem
+                                key={preset.id}
+                                value={preset.id}
+                                className={styles.selectPopupItem}
+                              >
+                                {preset.label}
+                              </SelectItem>
+                            ))}
+                          </SelectPopup>
+                        </Select>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">{formattedPhone}</p>
-                      {phoneError && (
-                        <p className="mt-1 text-xs text-amber-700">{phoneError}</p>
-                      )}
-                    </label>
-                  ) : (
-                    <label className="block min-w-0 text-xs text-slate-600">
-                      <span className="mb-1 block">{labelForField(key)}</span>
-                      <input
-                        className="block w-full min-w-0 rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-                        placeholder={
-                          DEFAULT_FIELD_VALUES[
-                            key as keyof typeof DEFAULT_FIELD_VALUES
-                          ] ?? ""
-                        }
-                        value={state.fields[key] ?? ""}
-                        onChange={(ev) =>
-                          setState((s) => ({
-                            ...s,
-                            fields: { ...s.fields, [key]: ev.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                  )}
-                  {state.templateId === "A" && key === "company" && (
-                    <label className="mt-3 block min-w-0 text-xs text-slate-600">
-                      <span className="mb-1 block">地址地区</span>
-                      <select
-                        className="block w-full min-w-0 rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-                        value={state.fields.addressPreset ?? ""}
-                        onChange={(ev) => {
-                          const addressPreset = ev.target.value;
-                          setState((s) => ({
-                            ...s,
-                            fields: {
-                              ...s.fields,
-                              addressPreset,
-                              address: buildAddressText(addressPreset),
-                            },
-                          }));
-                        }}
-                      >
-                        {ADDRESS_PRESETS.map((preset) => (
-                          <option key={preset.id} value={preset.id}>
-                            {preset.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {state.templateId === "B" && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-800">Logo（可选）</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                模板 B 反面可显示 Logo。
-              </p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                <label className="cursor-pointer rounded-md bg-slate-100 px-3 py-2 text-sm hover:bg-slate-200">
-                  上传 Logo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!f) return;
-                      const url = await fileToDataUrl(f);
-                      setState((s) => ({
-                        ...s,
-                        assets: { ...s.assets, logoDataUrl: url },
-                      }));
-                    }}
-                  />
-                </label>
-                {state.assets.logoDataUrl && (
-                  <button
-                    type="button"
-                    className="text-sm text-red-600 hover:underline"
-                    onClick={() =>
-                      setState((s) => ({
-                        ...s,
-                        assets: { ...s.assets, logoDataUrl: undefined },
-                      }))
-                    }
-                  >
-                    清除 Logo
-                  </button>
-                )}
+                    )}
+                  </div>
+                ))}
               </div>
             </section>
-          )}
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-800">二维码</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              上传含二维码的图片后系统会解码并生成统一尺寸的矢量码；也可手动填写链接或文本。
-            </p>
-            <div className="mt-3 space-y-2">
-              <label className="cursor-pointer inline-block rounded-md bg-slate-100 px-3 py-2 text-sm hover:bg-slate-200">
-                上传二维码图片
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onQrFile}
-                />
-              </label>
-              {qrError && (
-                <p className="text-xs text-amber-700">{qrError}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <input
-                  className="min-w-[12rem] flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm"
-                  placeholder="手动填写二维码内容"
-                  value={manualQr}
-                  onChange={(e) => setManualQr(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white"
-                  onClick={applyManualQr}
-                >
-                  应用
-                </button>
-                <button
-                  type="button"
-                  className="text-sm text-slate-600 underline"
-                  onClick={() => {
-                    setManualQr("");
-                    setState((s) => ({ ...s, qr: null }));
-                    setQrError(null);
-                  }}
-                >
-                  清除
-                </button>
+            {state.templateId === "B" && (
+              <section className={styles.surfaceCard}>
+                <div className={styles.sectionHeader}>
+                  <div className={styles.sectionTitleWrap}>
+                    <h2 className={styles.sectionTitle}>Logo</h2>
+                  </div>
+                </div>
+
+                <div className={styles.uploadRow}>
+                  <label
+                    className={cn(
+                      styles.buttonBase,
+                      styles.secondaryButton,
+                      styles.uploadButton
+                    )}
+                  >
+                    上传 Logo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className={styles.hiddenInput}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!f) return;
+                        const url = await fileToDataUrl(f);
+                        setState((s) => ({
+                          ...s,
+                          assets: { ...s.assets, logoDataUrl: url },
+                        }));
+                      }}
+                    />
+                  </label>
+                  {state.assets.logoDataUrl && (
+                    <button
+                      type="button"
+                      className={cn(styles.buttonBase, styles.linkButton)}
+                      onClick={() =>
+                        setState((s) => ({
+                          ...s,
+                          assets: { ...s.assets, logoDataUrl: undefined },
+                        }))
+                      }
+                    >
+                      清除 Logo
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
+
+            <section className={styles.surfaceCard} id="qr">
+              <div className={styles.sectionHeader}>
+                <div className={styles.sectionTitleWrap}>
+                  <h2 className={styles.sectionTitle}>二维码</h2>
+                </div>
               </div>
-            </div>
-          </section>
 
+              <div className={styles.fieldStack}>
+                <div className={styles.uploadRow}>
+                  <input
+                    ref={qrFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className={styles.hiddenInput}
+                    onChange={onQrFile}
+                  />
+                  <button
+                    type="button"
+                    className={cn(styles.buttonBase, styles.secondaryButton)}
+                    onClick={openQrPicker}
+                  >
+                    上传二维码图片
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(styles.buttonBase, styles.linkButton)}
+                    onClick={() => {
+                      setManualQr("");
+                      setState((s) => ({ ...s, qr: null }));
+                      setQrError(null);
+                    }}
+                  >
+                    清除
+                  </button>
+                </div>
+
+                {qrError && (
+                  <p className={cn(styles.helperText, styles.errorText)}>
+                    {qrError}
+                  </p>
+                )}
+
+                <div className={styles.fieldBlock}>
+                  <span className={styles.fieldLabel}>二维码内容</span>
+                  <div className={styles.controlShell}>
+                    <input
+                      className={styles.control}
+                      placeholder="输入链接、名片地址或任意文本"
+                      value={manualQr}
+                      onChange={(e) => setManualQr(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.qrActionRow}>
+                  <button
+                    type="button"
+                    className={cn(styles.buttonBase, styles.primaryButton)}
+                    onClick={applyManualQr}
+                  >
+                    应用内容
+                  </button>
+                </div>
+              </div>
+            </section>
+          </aside>
+
+          <div className={styles.previewColumn}>
+            <section className={styles.previewPanel} id="preview">
+              <div className={styles.previewHeader}>
+                <div className={styles.previewTitleWrap}>
+                  <h2 className={styles.sectionTitle}>实时预览</h2>
+                </div>
+                <span className={styles.previewMetaText}>名片尺寸 90 × 55 mm</span>
+              </div>
+
+              <div className={styles.previewFaces}>
+                <div className={styles.previewFaceBlock}>
+                  <CardFacePreview
+                    state={state}
+                    side="front"
+                    qrModules={qrModules}
+                    onQrPlaceholderClick={openQrPicker}
+                  />
+                </div>
+
+                <div className={styles.previewFaceBlock}>
+                  <CardFacePreview
+                    state={state}
+                    side="back"
+                    qrModules={qrModules}
+                  />
+                </div>
+              </div>
+            </section>
           </div>
-
-          <div className="min-h-0 min-w-0 flex-1">
-            <section className="sticky top-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-800">预览</h2>
-            <p className="text-xs text-slate-500">
-              尺寸 {90}×{55} mm（正面 / 反面）
-            </p>
-            <div className="mt-4 flex flex-col items-center gap-6">
-              <div>
-                <p className="mb-2 text-center text-xs text-slate-500">正面</p>
-                <CardFacePreview
-                  state={state}
-                  side="front"
-                  qrModules={qrModules}
-                />
-              </div>
-              <div>
-                <p className="mb-2 text-center text-xs text-slate-500">反面</p>
-                <CardFacePreview
-                  state={state}
-                  side="back"
-                  qrModules={qrModules}
-                />
-              </div>
-            </div>
-          </section>
         </div>
-      </div>
+
+        <Dialog open={subotizDialogOpen} onOpenChange={setSubotizDialogOpen}>
+          <DialogPopup className={styles.noticeDialog}>
+            <DialogHeader>
+              <DialogTitle>模板搭建中...</DialogTitle>
+              <DialogDescription>
+                Subotiz 模板暂未开放，完成后会在这里提供切换。
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter variant="bare" className={styles.noticeDialogFooter}>
+              <button
+                type="button"
+                className={cn(styles.buttonBase, styles.primaryButton)}
+                onClick={() => setSubotizDialogOpen(false)}
+              >
+                知道了
+              </button>
+            </DialogFooter>
+          </DialogPopup>
+        </Dialog>
       </div>
     </main>
   );

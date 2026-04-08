@@ -13,8 +13,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="min-h-screen antialiased [font-family:'PingFang_SC','Hiragino_Sans_GB','Microsoft_YaHei','Noto_Sans_CJK_SC',system-ui,sans-serif]">
-        {children}
+      <body className="relative min-h-screen antialiased">
+        <div className="isolate relative flex min-h-svh flex-col">
+          {children}
+        </div>
       </body>
     </html>
   );

@@ -26,6 +26,7 @@ type Props = {
   state: CardState;
   side: "front" | "back";
   qrModules: QrModules | null;
+  onQrPlaceholderClick?: () => void;
 };
 
 function FaceContent({
@@ -33,11 +34,13 @@ function FaceContent({
   side,
   state,
   qrModules,
+  onQrPlaceholderClick,
 }: {
   layout: TemplateLayout;
   side: "front" | "back";
   state: CardState;
   qrModules: QrModules | null;
+  onQrPlaceholderClick?: () => void;
 }) {
   const face = layout[side];
   const qrPos = layout.qr[side];
@@ -144,11 +147,36 @@ function FaceContent({
           <QrSvgDom modules={qrModules} sizeMm={layout.qr.sizeMm} />
         </div>
       )}
+
+      {qrPos && !payload && onQrPlaceholderClick && (
+        <button
+          type="button"
+          className="absolute grid place-items-center rounded-[1.6mm] border border-dashed border-black/20 bg-white/22 px-[1.2mm] text-center text-[4.2pt] leading-tight font-medium text-black/42 transition-colors hover:bg-white/36 hover:text-black/58"
+          style={{
+            left: `${qrPos.leftMm}mm`,
+            top: `${qrPos.topMm}mm`,
+            width: `${layout.qr.sizeMm}mm`,
+            height: `${layout.qr.sizeMm}mm`,
+            fontFamily:
+              'var(--font-harmony-embedded), "HarmonyOS Sans SC", "Noto Sans SC", sans-serif',
+          }}
+          onClick={onQrPlaceholderClick}
+        >
+          上传
+          <br />
+          二维码
+        </button>
+      )}
     </>
   );
 }
 
-export function CardFacePreview({ state, side, qrModules }: Props) {
+export function CardFacePreview({
+  state,
+  side,
+  qrModules,
+  onQrPlaceholderClick,
+}: Props) {
   const layout = getTemplate(state.templateId);
   const face = layout[side];
 
@@ -163,7 +191,13 @@ export function CardFacePreview({ state, side, qrModules }: Props) {
           'var(--font-harmony, "HarmonyOS Sans", "Noto Sans SC", system-ui, sans-serif)',
       }}
     >
-      <FaceContent layout={layout} side={side} state={state} qrModules={qrModules} />
+      <FaceContent
+        layout={layout}
+        side={side}
+        state={state}
+        qrModules={qrModules}
+        onQrPlaceholderClick={onQrPlaceholderClick}
+      />
     </div>
   );
 }

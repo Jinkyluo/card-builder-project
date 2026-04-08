@@ -1,5 +1,6 @@
-import { DEFAULT_FIELD_VALUES, type CardState } from "@/lib/types/card";
+import type { CardState } from "@/lib/types/card";
 import type { CardFieldBlock, TemplateLayout } from "@/lib/layout/cardLayout";
+import { resolveFieldLayoutValue } from "@/lib/fields/displayValue";
 
 const CSS_PX_PER_MM = 96 / 25.4;
 const ENGLISH_NAME_GAP_PX = 6;
@@ -61,7 +62,11 @@ export function resolveBlockLeftMm(
       return block.leftMm;
     }
 
-    const nameText = (state.fields.name ?? "").trim() || DEFAULT_FIELD_VALUES.name;
+    if (state.visibility.name === false) {
+      return nameBlock.leftMm;
+    }
+
+    const nameText = resolveFieldLayoutValue(state, "name");
     const nameWidthPx = measureTextWidthPx(nameBlock, nameText);
     const nameWidthMm = nameWidthPx / CSS_PX_PER_MM;
     const gapMm = ENGLISH_NAME_GAP_PX / CSS_PX_PER_MM;
@@ -84,9 +89,8 @@ export function resolveBlockLeftMm(
     return block.leftMm;
   }
 
-  const companyText =
-    (state.fields.company ?? "").trim() || DEFAULT_FIELD_VALUES.company;
-  const addressText = state.fields.address ?? "";
+  const companyText = resolveFieldLayoutValue(state, "company");
+  const addressText = resolveFieldLayoutValue(state, "address");
   const companyWidthPx = measureTextWidthPx(companyBlock, companyText);
   const addressWidthPx = measureTextWidthPx(addressBlock, addressText);
   const groupWidthMm = Math.max(companyWidthPx, addressWidthPx) / CSS_PX_PER_MM;
