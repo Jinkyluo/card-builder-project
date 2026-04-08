@@ -1,6 +1,6 @@
 /** 表单展示用中文标签，与 fields key 对应 */
 export const FIELD_LABELS: Record<string, string> = {
-  name: "姓名",
+  name: "中文名",
   englishName: "英文名",
   title: "职位",
   company: "公司",

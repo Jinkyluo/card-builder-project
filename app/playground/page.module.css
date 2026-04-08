@@ -5,6 +5,37 @@
     linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
+.page :global([data-slot="button"]),
+.page :global([data-slot="dialog-trigger"]),
+.page :global([data-slot="dialog-close"]),
+.page :global([data-slot="popover-trigger"]),
+.page :global([data-slot="sheet-trigger"]),
+.page :global([data-slot="drawer-trigger"]),
+.page :global([data-slot="toolbar-button"]),
+.page :global([data-slot="toolbar-link"]),
+.page :global([data-slot="badge"]),
+.page :global([data-slot="toolbar"]),
+.page :global([data-slot="tabs-list"]),
+.page :global([data-slot="tabs-tab"]),
+.page :global([data-slot="tab-indicator"]) {
+  border-radius: 9999px;
+}
+
+.page :global([data-slot="button"]::before),
+.page :global([data-slot="dialog-trigger"]::before),
+.page :global([data-slot="dialog-close"]::before),
+.page :global([data-slot="popover-trigger"]::before),
+.page :global([data-slot="sheet-trigger"]::before),
+.page :global([data-slot="drawer-trigger"]::before),
+.page :global([data-slot="toolbar-button"]::before),
+.page :global([data-slot="toolbar-link"]::before) {
+  border-radius: inherit;
+}
+
+.page :global([data-slot="badge"]) {
+  padding-inline: 0.8rem;
+}
+
 .shell {
   width: min(1400px, calc(100% - 32px));
   margin: 0 auto;

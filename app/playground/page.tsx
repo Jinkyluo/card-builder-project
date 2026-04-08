@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircleIcon,
   BotIcon,
@@ -170,6 +170,14 @@ export default function PlaygroundPage() {
     },
   ]);
 
+  useEffect(() => {
+    document.body.dataset.playground = "true";
+
+    return () => {
+      delete document.body.dataset.playground;
+    };
+  }, []);
+
   function handleConversationSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const content = promptDraft.trim();
@@ -199,6 +207,41 @@ export default function PlaygroundPage() {
 
   return (
     <main className={styles.page}>
+      <style jsx global>{`
+        body[data-playground="true"] [data-slot="button"],
+        body[data-playground="true"] [data-slot="dialog-trigger"],
+        body[data-playground="true"] [data-slot="dialog-close"],
+        body[data-playground="true"] [data-slot="popover-trigger"],
+        body[data-playground="true"] [data-slot="sheet-trigger"],
+        body[data-playground="true"] [data-slot="drawer-trigger"],
+        body[data-playground="true"] [data-slot="toolbar-button"],
+        body[data-playground="true"] [data-slot="toolbar-link"] {
+          border-radius: 9999px;
+        }
+
+        body[data-playground="true"] [data-slot="button"]::before,
+        body[data-playground="true"] [data-slot="dialog-trigger"]::before,
+        body[data-playground="true"] [data-slot="dialog-close"]::before,
+        body[data-playground="true"] [data-slot="popover-trigger"]::before,
+        body[data-playground="true"] [data-slot="sheet-trigger"]::before,
+        body[data-playground="true"] [data-slot="drawer-trigger"]::before,
+        body[data-playground="true"] [data-slot="toolbar-button"]::before,
+        body[data-playground="true"] [data-slot="toolbar-link"]::before {
+          border-radius: inherit;
+        }
+
+        body[data-playground="true"] [data-slot="badge"],
+        body[data-playground="true"] [data-slot="toolbar"],
+        body[data-playground="true"] [data-slot="tabs-list"],
+        body[data-playground="true"] [data-slot="tabs-tab"],
+        body[data-playground="true"] [data-slot="tab-indicator"] {
+          border-radius: 9999px;
+        }
+
+        body[data-playground="true"] [data-slot="badge"] {
+          padding-inline: 0.8rem;
+        }
+      `}</style>
       <div className={styles.shell}>
         <Card className={styles.hero}>
           <div className={styles.heroHeader}>
@@ -262,18 +305,18 @@ export default function PlaygroundPage() {
               <CardPanel className={styles.stack}>
                 <div className={styles.buttonRow}>
                   <button
-                    className="inline-flex items-center rounded-lg border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-xs"
+                    className="inline-flex items-center rounded-full border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-xs"
                     type="button"
                   >
                     Raw primary probe
                   </button>
                   <button
-                    className="inline-flex items-center rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-xs/5"
+                    className="inline-flex items-center rounded-full border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-xs/5"
                     type="button"
                   >
                     Raw neutral probe
                   </button>
-                  <span className="inline-flex items-center rounded-sm bg-info/8 px-2 py-1 text-xs font-medium text-info-foreground">
+                  <span className="inline-flex items-center rounded-full bg-info/8 px-2 py-1 text-xs font-medium text-info-foreground">
                     Raw info badge
                   </span>
                 </div>
