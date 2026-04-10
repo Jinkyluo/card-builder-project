@@ -7,6 +7,8 @@ import {
   SHOPLAZZA_BACK_LOGO,
   SHOPLAZZA_FRONT_LOGO,
 } from "@/lib/brand/shoplazza";
+import { SUBOTIZ_BACK_LOGO, SUBOTIZ_FRONT_LOGO } from "@/lib/brand/subotiz";
+import { cn } from "@/lib/utils";
 import {
   CARD_HEIGHT_MM,
   CARD_WIDTH_MM,
@@ -46,15 +48,10 @@ function FaceContent({
   const qrPos = layout.qr[side];
   const payload = state.qr?.payload;
 
+  const subotizChrome = state.templateId === "B";
+
   return (
     <>
-      {state.templateId === "B" && side === "front" && (
-        <div
-          className="absolute left-0 top-0 h-[3mm] w-full"
-          style={{ backgroundColor: "#334155" }}
-        />
-      )}
-
       {state.templateId === "A" && side === "front" && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -70,10 +67,40 @@ function FaceContent({
         />
       )}
 
+      {state.templateId === "B" && side === "front" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={SUBOTIZ_FRONT_LOGO}
+          alt=""
+          className="absolute object-contain"
+          style={{
+            left: `${FRONT_LOGO_BOUNDS_MM.left}mm`,
+            top: `${FRONT_LOGO_BOUNDS_MM.top}mm`,
+            width: `${FRONT_LOGO_BOUNDS_MM.width}mm`,
+            height: `${FRONT_LOGO_BOUNDS_MM.height}mm`,
+          }}
+        />
+      )}
+
       {state.templateId === "A" && side === "back" && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={SHOPLAZZA_BACK_LOGO}
+          alt=""
+          className="absolute object-contain"
+          style={{
+            left: `${BACK_LOGO_BOUNDS_MM.left}mm`,
+            top: `${BACK_LOGO_BOUNDS_MM.top}mm`,
+            width: `${BACK_LOGO_BOUNDS_MM.width}mm`,
+            height: `${BACK_LOGO_BOUNDS_MM.height}mm`,
+          }}
+        />
+      )}
+
+      {state.templateId === "B" && side === "back" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={SUBOTIZ_BACK_LOGO}
           alt=""
           className="absolute object-contain"
           style={{
@@ -114,7 +141,9 @@ function FaceContent({
                   ? 'var(--font-harmony-embedded), "HarmonyOS Sans SC", "Noto Sans SC", sans-serif'
                   : b.fontFamily === "pp-right"
                     ? 'var(--font-pp-right), "PP Right Grotesk Wide Regular", sans-serif'
-                    : undefined,
+                    : b.fontFamily === "dm-sans"
+                      ? 'var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui, sans-serif'
+                      : undefined,
               maxWidth: b.maxWidthMm != null ? `${b.maxWidthMm}mm` : undefined,
             }}
           >
@@ -123,31 +152,15 @@ function FaceContent({
         );
       })}
 
-      {side === "back" &&
-        state.assets.logoDataUrl &&
-        state.templateId === "B" && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={state.assets.logoDataUrl}
-            alt=""
-            className="absolute object-contain"
-            style={{
-              left: "8mm",
-              top: "8mm",
-              width: "28mm",
-              height: "10mm",
-            }}
-          />
-        )}
-
       {qrPos && payload && qrModules && (
         <div
-          className="absolute text-black"
+          className="absolute"
           style={{
             left: `${qrPos.leftMm}mm`,
             top: `${qrPos.topMm}mm`,
             width: `${layout.qr.sizeMm}mm`,
             height: `${layout.qr.sizeMm}mm`,
+            color: layout.front.text,
           }}
         >
           <QrSvgDom modules={qrModules} sizeMm={layout.qr.sizeMm} />
@@ -157,7 +170,12 @@ function FaceContent({
       {qrPos && !payload && onQrPlaceholderClick && (
         <button
           type="button"
-          className="absolute grid cursor-pointer place-items-center rounded-[1.6mm] border border-dashed border-black/20 bg-white/22 px-[1.2mm] text-center text-[4.2pt] leading-tight font-medium text-black/42 transition-colors hover:bg-white/36 hover:text-black/58"
+          className={cn(
+            "absolute grid cursor-pointer place-items-center rounded-[1.6mm] border border-dashed bg-white/22 px-[1.2mm] text-center text-[4.2pt] leading-tight font-medium transition-colors hover:bg-white/36",
+            subotizChrome
+              ? "border-[#7700ea]/35 text-[#7700ea]/58 hover:text-[#7700ea]/72"
+              : "border-black/20 text-black/42 hover:text-black/58"
+          )}
           style={{
             left: `${qrPos.leftMm}mm`,
             top: `${qrPos.topMm}mm`,

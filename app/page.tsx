@@ -6,11 +6,7 @@ import { DownloadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import styles from "./page.module.css";
 import { CardFacePreview } from "@/components/CardFacePreview";
-import {
-  ADDRESS_PRESETS,
-  buildAddressText,
-  inferAddressPresetId,
-} from "@/lib/config/addressPresets";
+import { migrateLegacyCardState } from "@/lib/card/effectiveFields";
 import {
   getPhoneRegionOption,
   inferPhoneRegionAndLocalNumber,
@@ -18,16 +14,12 @@ import {
   PHONE_REGION_OPTIONS,
   validatePhoneForRegion,
 } from "@/lib/config/phoneRegions";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogPopup,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import type { CardState, TemplateId } from "@/lib/types/card";
-import { DEFAULT_FIELD_VALUES, defaultCardState } from "@/lib/types/card";
+import {
+  defaultCardState,
+  SHOPLAZZA_DEFAULT_COMPANY,
+  SHOPLAZZA_DEFAULT_WEBSITE,
+} from "@/lib/types/card";
 import { loadDraft, saveDraft } from "@/lib/storage/idb";
 import { getQrModules, type QrModules } from "@/lib/qr/generate";
 import { decodeQrFromFile } from "@/lib/qr/decode";
@@ -38,6 +30,10 @@ import {
 } from "@/components/SidebarFieldRow";
 
 const DEBOUNCE_MS = 400;
+
+/** 模板切换说明已确认后写入 localStorage，同浏览器仅首次再弹窗 */
+const TEMPLATE_SWITCH_CONFIRM_STORAGE_KEY =
+  "cardBuilder:templateSwitchConfirmSeen";
 
 function useDebouncedCallback<T extends unknown[]>(
   fn: (...args: T) => void,
@@ -53,48 +49,46 @@ function useDebouncedCallback<T extends unknown[]>(
   );
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(file);
-  });
-}
-
-/** 去除旧版草稿里的头像字段，避免占位存储 */
-function normalizeCardState(raw: CardState): CardState {
-  const assets = { ...raw.assets } as CardState["assets"] & {
+/** 旧版单层 fields 迁移、去除头像字段、规范化电话 */
+function normalizeCardState(raw: unknown): CardState {
+  const migrated = migrateLegacyCardState(raw);
+  const assets = { ...migrated.assets } as CardState["assets"] & {
     avatarDataUrl?: string;
   };
   delete assets.avatarDataUrl;
   const visibility = {
-    name: raw.visibility?.name !== false,
-    englishName: raw.visibility?.englishName !== false,
+    name: migrated.visibility?.name !== false,
+    englishName: migrated.visibility?.englishName !== false,
   };
-  const locks = {
-    company: raw.locks?.company !== false,
-  };
-  const addressPreset = raw.fields.addressPreset || inferAddressPresetId(raw.fields.address);
-  const normalizedPhone = raw.fields.phoneRegion
+  const normalizedPhone = migrated.shared.phoneRegion
     ? {
-        phoneRegion: raw.fields.phoneRegion,
-        phone: normalizePhoneDigits(raw.fields.phone ?? ""),
+        phoneRegion: migrated.shared.phoneRegion,
+        phone: normalizePhoneDigits(migrated.shared.phone ?? ""),
       }
-    : inferPhoneRegionAndLocalNumber(raw.fields.phone ?? "");
+    : inferPhoneRegionAndLocalNumber(migrated.shared.phone ?? "");
+
+  const a = migrated.templateFields.A;
+  const shoplazzaCompany =
+    a.company?.trim() || SHOPLAZZA_DEFAULT_COMPANY;
+  const shoplazzaWebsite =
+    a.website?.trim() || SHOPLAZZA_DEFAULT_WEBSITE;
+
   return {
-    ...raw,
+    ...migrated,
     assets,
-    fields: {
-      ...raw.fields,
-      company: raw.fields.company || "深圳店匠科技有限公司",
-      addressPreset,
-      address: buildAddressText(addressPreset),
-      phoneRegion: normalizedPhone.phoneRegion,
-      phone: normalizedPhone.phone,
-    },
     visibility,
-    locks,
+    shared: {
+      ...migrated.shared,
+      ...normalizedPhone,
+    },
+    templateFields: {
+      ...migrated.templateFields,
+      A: {
+        ...a,
+        company: shoplazzaCompany,
+        website: shoplazzaWebsite,
+      },
+    },
   };
 }
 
@@ -106,13 +100,12 @@ export default function HomePage() {
   const [manualQr, setManualQr] = useState("");
   const [exportingRgb, setExportingRgb] = useState(false);
   const [exportingCmyk, setExportingCmyk] = useState(false);
-  const [subotizDialogOpen, setSubotizDialogOpen] = useState(false);
   const qrFileInputRef = useRef<HTMLInputElement | null>(null);
-  const selectedPhoneRegion = getPhoneRegionOption(state.fields.phoneRegion);
+  const selectedPhoneRegion = getPhoneRegionOption(state.shared.phoneRegion);
   const isNameFieldVisible = (key: string) => state.visibility[key] !== false;
   const phoneError = validatePhoneForRegion(
-    state.fields.phoneRegion,
-    state.fields.phone
+    state.shared.phoneRegion,
+    state.shared.phone
   );
 
   const persistDraft = useDebouncedCallback((next: CardState) => {
@@ -163,41 +156,38 @@ export default function HomePage() {
   type SidebarGroup = { title: string; keys: string[] };
 
   const sidebarGroups = useMemo((): SidebarGroup[] => {
-    if (state.templateId === "A") {
-      return [
-        { title: "基础信息", keys: ["name", "englishName", "title"] },
-        { title: "联系方式", keys: ["phone", "email", "website"] },
-        { title: "公司信息", keys: ["company"] },
-      ];
-    }
+    const companySectionTitle =
+      state.templateId === "A" ? "公司信息" : "地址信息";
     return [
-      { title: "基础信息", keys: ["name", "title", "department"] },
-      { title: "联系方式", keys: ["phone", "email"] },
-      { title: "公司信息", keys: ["company", "address", "addressExtra", "wechat"] },
+      { title: "基础信息", keys: ["name", "englishName", "title"] },
+      { title: "联系方式", keys: ["phone", "email", "website"] },
+      { title: companySectionTitle, keys: ["company"] },
     ];
   }, [state.templateId]);
 
   const setTemplate = (id: TemplateId) => {
-    const ok = window.confirm(
-      "切换模板将保留已填内容中字段名一致的部分，其余字段可在表单中继续编辑。是否继续？"
-    );
-    if (!ok) return;
-    const next = defaultCardState();
-    next.templateId = id;
-    const merged = { ...next.fields, ...state.fields };
-    next.fields = merged;
-    if (id === "A") {
-      const addressPreset =
-        merged.addressPreset || inferAddressPresetId(merged.address);
-      next.fields.addressPreset = addressPreset;
-      next.fields.address = buildAddressText(addressPreset);
-      next.fields.company = merged.company || "深圳店匠科技有限公司";
+    let skipConfirm = false;
+    try {
+      skipConfirm =
+        window.localStorage.getItem(TEMPLATE_SWITCH_CONFIRM_STORAGE_KEY) ===
+        "1";
+    } catch {
+      skipConfirm = false;
     }
-    next.assets = { ...state.assets };
-    next.visibility = { ...state.visibility };
-    next.locks = { ...state.locks };
-    next.qr = state.qr;
-    setState(next);
+
+    if (!skipConfirm) {
+      const ok = window.confirm(
+        "切换模板将保留姓名、电话、邮箱前缀与二维码；公司与网站信息分别保存在各模板中，互不影响。是否继续？"
+      );
+      if (!ok) return;
+      try {
+        window.localStorage.setItem(TEMPLATE_SWITCH_CONFIRM_STORAGE_KEY, "1");
+      } catch {
+        /* 私密模式等可忽略 */
+      }
+    }
+
+    setState((s) => ({ ...s, templateId: id }));
   };
 
   const onQrFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,6 +312,15 @@ export default function HomePage() {
 
             <div className={styles.heroCenter}>
               <div className={styles.templateSwitch} aria-label="模板切换">
+                <span
+                  aria-hidden
+                  className={cn(
+                    styles.templateSwitchThumb,
+                    state.templateId === "A"
+                      ? styles.templateSwitchThumbShoplazza
+                      : styles.templateSwitchThumbSubotiz
+                  )}
+                />
                 {(["A", "B"] as TemplateId[]).map((id) => {
                   const active = state.templateId === id;
                   const label = id === "A" ? "Shoplazza" : "Subotiz";
@@ -330,20 +329,13 @@ export default function HomePage() {
                       key={id}
                       type="button"
                       onClick={() => {
-                        if (id === "B") {
-                          setSubotizDialogOpen(true);
-                          return;
-                        }
                         if (id !== state.templateId) {
                           setTemplate(id);
                         }
                       }}
                       className={cn(
                         styles.templateSwitchButton,
-                        active &&
-                          (id === "A"
-                            ? styles.templateSwitchButtonShoplazzaActive
-                            : styles.templateSwitchButtonSubotizActive)
+                        active && styles.templateSwitchButtonOnThumb
                       )}
                     >
                       {label}
@@ -378,7 +370,7 @@ export default function HomePage() {
                 )}
               >
                 <DownloadIcon />
-                {exportingCmyk ? "导出中…" : "导出印刷 PDF (CMYK)"}
+                {exportingCmyk ? "导出中…" : "导出印刷版"}
               </button>
             </div>
           </div>
@@ -408,7 +400,7 @@ export default function HomePage() {
                           <div className={styles.fieldBlock}>
                             <ShoplazzaAddressPresetBlock state={state} setState={setState} />
                           </div>
-                          {state.fields.addressPreset === "none" && (
+                          {state.templateFields.A.addressPreset === "none" && (
                             <div className={styles.fieldBlock}>
                               <SidebarFieldRow
                                 fieldKey="addressExtra"
@@ -427,57 +419,6 @@ export default function HomePage() {
                 ))}
               </div>
             </section>
-
-            {state.templateId === "B" && (
-              <section className={styles.surfaceCard}>
-                <div className={styles.sectionHeader}>
-                  <div className={styles.sectionTitleWrap}>
-                    <h2 className={styles.sectionTitle}>Logo</h2>
-                  </div>
-                </div>
-
-                <div className={styles.uploadRow}>
-                  <label
-                    className={cn(
-                      styles.buttonBase,
-                      styles.secondaryButton,
-                      styles.uploadButton
-                    )}
-                  >
-                    上传 Logo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className={styles.hiddenInput}
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!f) return;
-                        const url = await fileToDataUrl(f);
-                        setState((s) => ({
-                          ...s,
-                          assets: { ...s.assets, logoDataUrl: url },
-                        }));
-                      }}
-                    />
-                  </label>
-                  {state.assets.logoDataUrl && (
-                    <button
-                      type="button"
-                      className={cn(styles.buttonBase, styles.linkButton)}
-                      onClick={() =>
-                        setState((s) => ({
-                          ...s,
-                          assets: { ...s.assets, logoDataUrl: undefined },
-                        }))
-                      }
-                    >
-                      清除 Logo
-                    </button>
-                  )}
-                </div>
-              </section>
-            )}
 
             <section className={styles.surfaceCard} id="qr" aria-label="二维码">
               <div className={styles.fieldStack}>
@@ -570,26 +511,6 @@ export default function HomePage() {
             </section>
           </div>
         </div>
-
-        <Dialog open={subotizDialogOpen} onOpenChange={setSubotizDialogOpen}>
-          <DialogPopup className={styles.noticeDialog}>
-            <DialogHeader>
-              <DialogTitle>模板搭建中...</DialogTitle>
-              <DialogDescription>
-                Subotiz 模板暂未开放，完成后会在这里提供切换。
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter variant="bare" className={styles.noticeDialogFooter}>
-              <button
-                type="button"
-                className={cn(styles.buttonBase, styles.primaryButton)}
-                onClick={() => setSubotizDialogOpen(false)}
-              >
-                知道了
-              </button>
-            </DialogFooter>
-          </DialogPopup>
-        </Dialog>
       </div>
     </main>
   );

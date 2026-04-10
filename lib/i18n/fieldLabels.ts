@@ -1,3 +1,5 @@
+import type { TemplateId } from "@/lib/types/card";
+
 /** 表单展示用中文标签，与 fields key 对应 */
 export const FIELD_LABELS: Record<string, string> = {
   name: "中文名",
@@ -17,6 +19,9 @@ export const FIELD_LABELS: Record<string, string> = {
   addressExtra: "自定义地址",
 };
 
-export function labelForField(key: string): string {
+export function labelForField(key: string, templateId?: TemplateId): string {
+  if (key === "company" && templateId === "B") {
+    return "地址";
+  }
   return FIELD_LABELS[key] ?? key;
 }

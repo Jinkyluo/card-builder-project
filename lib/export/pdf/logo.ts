@@ -6,6 +6,10 @@ import {
   SHOPLAZZA_BACK_LOGO_SVG,
   SHOPLAZZA_FRONT_LOGO_SVG,
 } from "@/lib/brand/shoplazza";
+import {
+  SUBOTIZ_BACK_LOGO_SVG,
+  SUBOTIZ_FRONT_LOGO_SVG,
+} from "@/lib/brand/subotiz";
 import { mmToPt } from "@/lib/layout/cardLayout";
 
 type ParsedDataUrl = {
@@ -51,6 +55,20 @@ export function drawTemplateALogo(
 ): void {
   const bounds = side === "front" ? FRONT_LOGO_BOUNDS_MM : BACK_LOGO_BOUNDS_MM;
   const svg = side === "front" ? SHOPLAZZA_FRONT_LOGO_SVG : SHOPLAZZA_BACK_LOGO_SVG;
+
+  SVGtoPDF(doc, svg, mmToPt(bounds.left), mmToPt(bounds.top), {
+    width: mmToPt(bounds.width),
+    height: mmToPt(bounds.height),
+    preserveAspectRatio: "xMidYMid meet",
+  });
+}
+
+export function drawSubotizLogo(
+  doc: PDFKit.PDFDocument,
+  side: "front" | "back"
+): void {
+  const bounds = side === "front" ? FRONT_LOGO_BOUNDS_MM : BACK_LOGO_BOUNDS_MM;
+  const svg = side === "front" ? SUBOTIZ_FRONT_LOGO_SVG : SUBOTIZ_BACK_LOGO_SVG;
 
   SVGtoPDF(doc, svg, mmToPt(bounds.left), mmToPt(bounds.top), {
     width: mmToPt(bounds.width),

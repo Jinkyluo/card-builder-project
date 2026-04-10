@@ -1,3 +1,4 @@
+import { getEffectiveFields } from "@/lib/card/effectiveFields";
 import type { CardState } from "@/lib/types/card";
 import type { CardFieldBlock, TemplateLayout } from "@/lib/layout/cardLayout";
 import { resolveFieldLayoutValue } from "@/lib/fields/displayValue";
@@ -5,19 +6,22 @@ import { resolveFieldLayoutValue } from "@/lib/fields/displayValue";
 const CSS_PX_PER_MM = 96 / 25.4;
 const ENGLISH_NAME_GAP_PX = 6;
 const COMPANY_ADDRESS_LINE_PITCH_MM = 47.02 - 43.7;
-/** 模板 B 背面多行字段行距（mm，与 7pt 视觉接近） */
-const TEMPLATE_B_BACK_LINE_PITCH_MM = 3.5;
+
+/** 与 Shoplazza（A）同版式的模板（含 Subotiz B） */
+function isShoplazzaLayout(layout: TemplateLayout): boolean {
+  return layout.id === "A" || layout.id === "B";
+}
 
 /** 模板 A 正面主地址（地址地区预设）非空行数；为 0 时不占位，自定义地址顶到主地址行 */
 function templateAFrontMainAddressLineCount(state: CardState): number {
-  return (state.fields.address ?? "")
+  return (getEffectiveFields(state).address ?? "")
     .split("\n")
     .filter((line) => line.trim().length > 0).length;
 }
 
 /** 补充地址非空时，右侧公司信息整块按行数向上偏移（与主地址多行上移规则一致） */
 function templateAFrontAddressExtraUpwardShiftMm(state: CardState): number {
-  const raw = (state.fields.addressExtra ?? "").trim();
+  const raw = (getEffectiveFields(state).addressExtra ?? "").trim();
   if (!raw) return 0;
   const lineCount = Math.max(1, raw.split("\n").filter(Boolean).length);
   return lineCount * COMPANY_ADDRESS_LINE_PITCH_MM;
@@ -45,7 +49,9 @@ function measureTextWidthPx(block: CardFieldBlock, text: string): number {
       ? '"HarmonyOS Sans SC Embedded", "HarmonyOS Sans SC", sans-serif'
       : block.fontFamily === "pp-right"
         ? '"PP Right Grotesk Wide Regular", sans-serif'
-        : 'system-ui, sans-serif';
+        : block.fontFamily === "dm-sans"
+          ? '"DM Sans", sans-serif'
+          : 'system-ui, sans-serif';
 
   if (typeof document === "undefined") {
     return estimateTextWidthPx(text, block.fontSizePt);
@@ -63,70 +69,13 @@ function measureTextWidthPx(block: CardFieldBlock, text: string): number {
     .reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
 }
 
-/** 模板 B 背面：按最大宽度估算折行行数（与预览自动换行接近） */
-function countTemplateBBackWrappedLines(
-  text: string,
-  maxWidthMm: number,
-  fontSizePt: number
-): number {
-  const parts = text.split("\n");
-  const approxCharMm = fontSizePt * 0.34;
-  const maxChars = Math.max(6, Math.floor(maxWidthMm / approxCharMm));
-  let total = 0;
-  for (const part of parts) {
-    const p = part.length === 0 ? "\u3000" : part;
-    total += Math.max(1, Math.ceil(p.length / maxChars));
-  }
-  return Math.max(1, total);
-}
-
-function resolveTemplateBBackBlockTopMm(
-  layout: TemplateLayout,
-  state: CardState,
-  block: CardFieldBlock
-): number {
-  if (block.key === "company") {
-    return block.topMm;
-  }
-
-  const addressBlock = layout.back.blocks.find((b) => b.key === "address");
-  const extraBlock = layout.back.blocks.find((b) => b.key === "addressExtra");
-  const maxW = addressBlock?.maxWidthMm ?? 52;
-  const pitch = TEMPLATE_B_BACK_LINE_PITCH_MM;
-
-  const addrText = resolveFieldLayoutValue(state, "address");
-  const addrLines = addressBlock
-    ? countTemplateBBackWrappedLines(addrText, maxW, addressBlock.fontSizePt)
-    : 1;
-
-  if (block.key === "address") {
-    return block.topMm;
-  }
-
-  const extraText = resolveFieldLayoutValue(state, "addressExtra");
-  const extraLines = extraBlock
-    ? countTemplateBBackWrappedLines(extraText, maxW, extraBlock.fontSizePt)
-    : 1;
-  const extraDisplayLines = extraText.trim() ? extraLines : 0;
-
-  if (block.key === "addressExtra") {
-    return 34 + addrLines * pitch;
-  }
-
-  if (block.key === "wechat") {
-    return 34 + addrLines * pitch + extraDisplayLines * pitch;
-  }
-
-  return block.topMm;
-}
-
 export function resolveBlockLeftMm(
   layout: TemplateLayout,
   side: "front" | "back",
   state: CardState,
   block: CardFieldBlock
 ): number {
-  if (layout.id !== "A" || side !== "front") {
+  if (!isShoplazzaLayout(layout) || side !== "front") {
     return block.leftMm;
   }
 
@@ -183,7 +132,7 @@ export function resolveBlockTopMm(
   state: CardState,
   block: CardFieldBlock
 ): number {
-  if (layout.id === "A" && side === "front") {
+  if (isShoplazzaLayout(layout) && side === "front") {
     const addressBlock = layout.front.blocks.find((b) => b.key === "address");
     const addressExtraBlock = layout.front.blocks.find(
       (b) => b.key === "addressExtra"
@@ -213,10 +162,6 @@ export function resolveBlockTopMm(
     }
   }
 
-  if (layout.id === "B" && side === "back") {
-    return resolveTemplateBBackBlockTopMm(layout, state, block);
-  }
-
   return block.topMm;
 }
 
@@ -226,19 +171,11 @@ export function resolveBlockLineHeightPt(
   block: CardFieldBlock
 ): number | undefined {
   if (
-    layout.id === "A" &&
+    isShoplazzaLayout(layout) &&
     side === "front" &&
     (block.key === "company" || block.key === "address" || block.key === "addressExtra")
   ) {
     return (COMPANY_ADDRESS_LINE_PITCH_MM * 72) / 25.4;
-  }
-
-  if (
-    layout.id === "B" &&
-    side === "back" &&
-    (block.key === "address" || block.key === "addressExtra" || block.key === "wechat")
-  ) {
-    return (TEMPLATE_B_BACK_LINE_PITCH_MM * 72) / 25.4;
   }
 
   return undefined;

@@ -8,7 +8,6 @@ import {
 } from "@/lib/layout/cardLayout";
 import {
   getFacePdfColors,
-  getTemplateBFrontTopBarColor,
   type PdfFillColor,
   type PdfColorSpace,
 } from "@/lib/layout/templateColors";
@@ -19,10 +18,7 @@ import {
 import { resolveFieldDisplayValue } from "@/lib/fields/displayValue";
 import { resolvePdfFontFamily } from "@/lib/export/pdf/fonts";
 import { drawQr } from "@/lib/export/pdf/qr";
-import {
-  drawTemplateALogo,
-  drawTemplateBCustomLogo,
-} from "@/lib/export/pdf/logo";
+import { drawSubotizLogo, drawTemplateALogo } from "@/lib/export/pdf/logo";
 import type { QrModules } from "@/lib/qr/generate";
 
 const ENGLISH_NAME_GAP_MM = 6 / (96 / 25.4);
@@ -51,7 +47,7 @@ function resolveBlockLeftMmForPdf(
   state: CardState,
   block: CardFieldBlock
 ): number {
-  if (layout.id !== "A" || side !== "front") {
+  if ((layout.id !== "A" && layout.id !== "B") || side !== "front") {
     return block.leftMm;
   }
 
@@ -136,21 +132,10 @@ export function drawFace(
   doc.fillColor(pdfColors.bg).rect(0, 0, doc.page.width, doc.page.height).fill();
   doc.restore();
 
-  if (layout.id === "B" && side === "front") {
-    doc.save();
-    doc
-      .fillColor(getTemplateBFrontTopBarColor(options.colorSpace))
-      .rect(0, 0, doc.page.width, mmToPt(3))
-      .fill();
-    doc.restore();
-  }
-
   if (layout.id === "A") {
     drawTemplateALogo(doc, side);
-  }
-
-  if (layout.id === "B" && side === "back" && state.assets.logoDataUrl) {
-    drawTemplateBCustomLogo(doc, state.assets.logoDataUrl);
+  } else if (layout.id === "B") {
+    drawSubotizLogo(doc, side);
   }
 
   for (const block of face.blocks) {
@@ -165,7 +150,8 @@ export function drawFace(
       qrPos.leftMm,
       qrPos.topMm,
       layout.qr.sizeMm,
-      options.colorSpace
+      options.colorSpace,
+      layout
     );
   }
 }

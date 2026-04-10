@@ -28,8 +28,24 @@ const TEMPLATE_A_CMYK = {
 } as const;
 
 /**
- * 由 Hex 换算 DeviceCMYK（0–100）。用于模板 B 等尚未提供印厂色号时的近似。
- * 若印厂提供 Subotiz 专色，可改为显式表替换此处用法。
+ * 模板 B（Subotiz）印厂指定 DeviceCMYK（0–100）。
+ * 浅紫底 11/8/0/0；品牌紫 78/90/0/0。
+ */
+const TEMPLATE_B_CMYK = {
+  front: {
+    bg: [11, 8, 0, 0] as Cmyk,
+    text: [78, 90, 0, 0] as Cmyk,
+    muted: [78, 90, 0, 0] as Cmyk,
+  },
+  back: {
+    bg: [78, 90, 0, 0] as Cmyk,
+    text: [0, 0, 0, 0] as Cmyk,
+    muted: [0, 0, 0, 0] as Cmyk,
+  },
+} as const;
+
+/**
+ * 由 Hex 换算 DeviceCMYK（0–100）。用于尚未提供印厂色号的模板之近似。
  */
 export function hexToCmyk100(hex: string): Cmyk {
   const normalized = hex.trim().replace(/^#/, "");
@@ -67,6 +83,10 @@ export function getFacePdfColors(
     const c = TEMPLATE_A_CMYK[side];
     return { bg: c.bg, text: c.text, muted: c.muted };
   }
+  if (layout.id === "B") {
+    const c = TEMPLATE_B_CMYK[side];
+    return { bg: c.bg, text: c.text, muted: c.muted };
+  }
   return {
     bg: hexToCmyk100(face.bg),
     text: hexToCmyk100(face.text),
@@ -74,18 +94,26 @@ export function getFacePdfColors(
   };
 }
 
-/** 模板 B 正面顶部细条（原硬编码 `#334155`） */
-export function getTemplateBFrontTopBarColor(colorSpace: PdfColorSpace): PdfFillColor {
-  if (colorSpace === "rgb") {
-    return "#334155";
+/** 二维码模块色：模板 A 印厂黑；模板 B 与正面品牌紫一致（印刷用印厂 CMYK） */
+export function getQrModuleColor(
+  colorSpace: PdfColorSpace,
+  layout: TemplateLayout
+): PdfFillColor {
+  if (layout.id === "A") {
+    if (colorSpace === "rgb") {
+      return "#000000";
+    }
+    return [0, 0, 0, 100];
   }
-  return hexToCmyk100("#334155");
-}
-
-/** 二维码模块颜色：与模板 A 指定黑一致 */
-export function getQrModuleColor(colorSpace: PdfColorSpace): PdfFillColor {
-  if (colorSpace === "rgb") {
-    return "#000000";
+  const hex = layout.front.text;
+  if (layout.id === "B") {
+    if (colorSpace === "rgb") {
+      return hex;
+    }
+    return TEMPLATE_B_CMYK.front.text;
   }
-  return [0, 0, 0, 100];
+  if (colorSpace === "rgb") {
+    return hex;
+  }
+  return hexToCmyk100(hex);
 }

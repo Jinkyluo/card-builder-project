@@ -25,9 +25,16 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
+  InputGroupText,
 } from "@/components/ui/input-group";
+import { parseEmailLocal } from "@/lib/card/effectiveFields";
 import type { CardState } from "@/lib/types/card";
-import { DEFAULT_FIELD_VALUES } from "@/lib/types/card";
+import {
+  DEFAULT_FIELD_VALUES,
+  emailSuffixForTemplate,
+  SUBOTIZ_DEFAULT_COMPANY,
+  SUBOTIZ_DEFAULT_WEBSITE,
+} from "@/lib/types/card";
 import { labelForField } from "@/lib/i18n/fieldLabels";
 
 const WEBSITE_OPTIONS = ["www.shoplazza.cn", "www.shoplazza.com"] as const;
@@ -64,18 +71,18 @@ export function SidebarFieldRow({
   if (key === "phone") {
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
         <div className={styles.phoneRow}>
           <Select
             items={PHONE_REGION_ITEMS}
-            value={state.fields.phoneRegion ?? ""}
+            value={state.shared.phoneRegion ?? ""}
             onValueChange={(phoneRegion) =>
               setState((s) => ({
                 ...s,
-                fields: {
-                  ...s.fields,
+                shared: {
+                  ...s.shared,
                   phoneRegion:
-                    phoneRegion ?? s.fields.phoneRegion ?? selectedPhoneRegion.id,
+                    phoneRegion ?? s.shared.phoneRegion ?? selectedPhoneRegion.id,
                 },
               }))
             }
@@ -86,7 +93,7 @@ export function SidebarFieldRow({
             >
               <SelectValue className={styles.selectValue}>
                 {(value) =>
-                  getPhoneRegionOption(String(value ?? state.fields.phoneRegion))
+                  getPhoneRegionOption(String(value ?? state.shared.phoneRegion))
                     .dialCode
                 }
               </SelectValue>
@@ -107,18 +114,18 @@ export function SidebarFieldRow({
             <input
               className={styles.control}
               placeholder={formatLocalPhoneForDisplay(
-                state.fields.phoneRegion,
+                state.shared.phoneRegion,
                 DEFAULT_FIELD_VALUES.phone
               )}
               value={formatLocalPhoneForDisplay(
-                state.fields.phoneRegion,
-                state.fields.phone
+                state.shared.phoneRegion,
+                state.shared.phone
               )}
               onChange={(ev) =>
                 setState((s) => ({
                   ...s,
-                  fields: {
-                    ...s.fields,
+                  shared: {
+                    ...s.shared,
                     phone: normalizePhoneDigits(ev.target.value),
                   },
                 }))
@@ -134,19 +141,72 @@ export function SidebarFieldRow({
   }
 
   if (key === "website") {
+    if (state.templateId === "B") {
+      const locks = state.templateFields.B.locks;
+      return (
+        <>
+          <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
+          <InputGroup className={styles.inputGroupField}>
+            <InputGroupInput
+              className={styles.inputGroupInput}
+              placeholder={SUBOTIZ_DEFAULT_WEBSITE}
+              value={state.templateFields.B.website ?? ""}
+              disabled={locks.website !== false}
+              onChange={(ev) =>
+                setState((s) => ({
+                  ...s,
+                  templateFields: {
+                    ...s.templateFields,
+                    B: { ...s.templateFields.B, website: ev.target.value },
+                  },
+                }))
+              }
+            />
+            <InputGroupAddon align="inline-end" className={styles.inputGroupActionAddon}>
+              <button
+                type="button"
+                className={styles.inputGroupActionButton}
+                aria-label={`${locks.website !== false ? "解锁" : "锁定"}网站编辑`}
+                aria-pressed={locks.website === false}
+                onClick={() =>
+                  setState((s) => ({
+                    ...s,
+                    templateFields: {
+                      ...s.templateFields,
+                      B: {
+                        ...s.templateFields.B,
+                        locks: {
+                          ...s.templateFields.B.locks,
+                          website: s.templateFields.B.locks.website === false,
+                        },
+                      },
+                    },
+                  }))
+                }
+              >
+                {locks.website !== false ? <LockIcon /> : <LockOpenIcon />}
+              </button>
+            </InputGroupAddon>
+          </InputGroup>
+        </>
+      );
+    }
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
         <Select
           aria-label="选择网站"
           items={WEBSITE_ITEMS}
-          value={state.fields.website || DEFAULT_FIELD_VALUES.website}
+          value={state.templateFields.A.website || DEFAULT_FIELD_VALUES.website}
           onValueChange={(website) =>
             setState((s) => ({
               ...s,
-              fields: {
-                ...s.fields,
-                website: website ?? s.fields.website ?? DEFAULT_FIELD_VALUES.website,
+              templateFields: {
+                ...s.templateFields,
+                A: {
+                  ...s.templateFields.A,
+                  website: website ?? s.templateFields.A.website ?? DEFAULT_FIELD_VALUES.website,
+                },
               },
             }))
           }
@@ -171,64 +231,119 @@ export function SidebarFieldRow({
   }
 
   if (key === "email") {
+    const suffix = emailSuffixForTemplate(state.templateId);
+    const local = state.shared.emailLocal;
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-        <div className={styles.controlShell}>
-          <input
-            className={styles.control}
-            type="email"
-            autoComplete="email"
-            placeholder={DEFAULT_FIELD_VALUES.email}
-            value={state.fields.email ?? ""}
-            onChange={(ev) =>
+        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
+        <InputGroup className={styles.inputGroupField}>
+          <InputGroupInput
+            className={styles.inputGroupInput}
+            type="text"
+            inputMode="email"
+            autoComplete="username"
+            placeholder="name"
+            value={local}
+            onChange={(ev) => {
+              const v = parseEmailLocal(ev.target.value);
               setState((s) => ({
                 ...s,
-                fields: { ...s.fields, email: ev.target.value },
-              }))
-            }
+                shared: { ...s.shared, emailLocal: v },
+              }));
+            }}
           />
-        </div>
+          <InputGroupAddon align="inline-end">
+            <InputGroupText>{suffix}</InputGroupText>
+          </InputGroupAddon>
+        </InputGroup>
       </>
     );
   }
 
   if (key === "company") {
+    const addrLabel = state.templateId === "B" ? "地址" : "公司";
+    const locks =
+      state.templateId === "A"
+        ? state.templateFields.A.locks
+        : state.templateFields.B.locks;
+    const companyValue =
+      state.templateId === "A"
+        ? state.templateFields.A.company
+        : state.templateFields.B.company;
+
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
         <InputGroup className={styles.inputGroupField}>
           <InputGroupInput
             className={styles.inputGroupInput}
             placeholder={
-              DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? ""
+              state.templateId === "B"
+                ? SUBOTIZ_DEFAULT_COMPANY
+                : (DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? "")
             }
-            value={state.fields[key] ?? ""}
-            disabled={state.locks.company !== false}
-            onChange={(ev) =>
-              setState((s) => ({
-                ...s,
-                fields: { ...s.fields, [key]: ev.target.value },
-              }))
-            }
+            value={companyValue ?? ""}
+            disabled={locks.company !== false}
+            onChange={(ev) => {
+              const v = ev.target.value;
+              setState((s) =>
+                s.templateId === "A"
+                  ? {
+                      ...s,
+                      templateFields: {
+                        ...s.templateFields,
+                        A: { ...s.templateFields.A, company: v },
+                      },
+                    }
+                  : {
+                      ...s,
+                      templateFields: {
+                        ...s.templateFields,
+                        B: { ...s.templateFields.B, company: v },
+                      },
+                    }
+              );
+            }}
           />
           <InputGroupAddon align="inline-end" className={styles.inputGroupActionAddon}>
             <button
               type="button"
               className={styles.inputGroupActionButton}
-              aria-label={`${state.locks.company !== false ? "解锁" : "锁定"}公司名称编辑`}
-              aria-pressed={state.locks.company === false}
+              aria-label={`${locks.company !== false ? "解锁" : "锁定"}${addrLabel}编辑`}
+              aria-pressed={locks.company === false}
               onClick={() =>
-                setState((s) => ({
-                  ...s,
-                  locks: {
-                    ...s.locks,
-                    company: s.locks.company === false,
-                  },
-                }))
+                setState((s) =>
+                  s.templateId === "A"
+                    ? {
+                        ...s,
+                        templateFields: {
+                          ...s.templateFields,
+                          A: {
+                            ...s.templateFields.A,
+                            locks: {
+                              ...s.templateFields.A.locks,
+                              company: s.templateFields.A.locks.company === false,
+                            },
+                          },
+                        },
+                      }
+                    : {
+                        ...s,
+                        templateFields: {
+                          ...s.templateFields,
+                          B: {
+                            ...s.templateFields.B,
+                            locks: {
+                              ...s.templateFields.B.locks,
+                              company: s.templateFields.B.locks.company === false,
+                            },
+                          },
+                        },
+                      }
+                )
               }
             >
-              {state.locks.company !== false ? <LockIcon /> : <LockOpenIcon />}
+              {locks.company !== false ? <LockIcon /> : <LockOpenIcon />}
             </button>
           </InputGroupAddon>
         </InputGroup>
@@ -239,36 +354,19 @@ export function SidebarFieldRow({
   if (key === "addressExtra") {
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
         <textarea
           className={styles.textareaControl}
           rows={2}
           placeholder="选填"
-          value={state.fields.addressExtra ?? ""}
+          value={state.templateFields.A.addressExtra ?? ""}
           onChange={(ev) =>
             setState((s) => ({
               ...s,
-              fields: { ...s.fields, addressExtra: ev.target.value },
-            }))
-          }
-        />
-      </>
-    );
-  }
-
-  if (key === "address" && state.templateId === "B") {
-    return (
-      <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
-        <textarea
-          className={styles.textareaControl}
-          rows={3}
-          placeholder="详细地址"
-          value={state.fields.address ?? ""}
-          onChange={(ev) =>
-            setState((s) => ({
-              ...s,
-              fields: { ...s.fields, address: ev.target.value },
+              templateFields: {
+                ...s.templateFields,
+                A: { ...s.templateFields.A, addressExtra: ev.target.value },
+              },
             }))
           }
         />
@@ -279,18 +377,18 @@ export function SidebarFieldRow({
   if (key === "name" || key === "englishName") {
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key)}</span>
+        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
         <InputGroup className={styles.inputGroupField}>
           <InputGroupInput
             className={styles.inputGroupInput}
             placeholder={
               DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? ""
             }
-            value={state.fields[key] ?? ""}
+            value={state.shared[key] ?? ""}
             onChange={(ev) =>
               setState((s) => ({
                 ...s,
-                fields: { ...s.fields, [key]: ev.target.value },
+                shared: { ...s.shared, [key]: ev.target.value },
               }))
             }
           />
@@ -298,7 +396,7 @@ export function SidebarFieldRow({
             <button
               type="button"
               className={styles.inputGroupActionButton}
-              aria-label={`${isNameFieldVisible(key) ? "隐藏" : "显示"}${labelForField(key)}`}
+              aria-label={`${isNameFieldVisible(key) ? "隐藏" : "显示"}${labelForField(key, state.templateId)}`}
               aria-pressed={isNameFieldVisible(key)}
               onClick={() =>
                 setState((s) => ({
@@ -320,18 +418,18 @@ export function SidebarFieldRow({
 
   return (
     <>
-      <span className={styles.fieldLabel}>{labelForField(key)}</span>
+      <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
       <div className={styles.controlShell}>
         <input
           className={styles.control}
           placeholder={
             DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? ""
           }
-          value={state.fields[key] ?? ""}
+          value={state.shared[key as keyof typeof state.shared] ?? ""}
           onChange={(ev) =>
             setState((s) => ({
               ...s,
-              fields: { ...s.fields, [key]: ev.target.value },
+              shared: { ...s.shared, [key]: ev.target.value },
             }))
           }
         />
@@ -353,17 +451,20 @@ export function ShoplazzaAddressPresetBlock({
       <Select
         aria-label="选择地址地区"
         items={ADDRESS_PRESET_ITEMS}
-        value={state.fields.addressPreset ?? ""}
+        value={state.templateFields.A.addressPreset ?? ""}
         onValueChange={(nextAddressPreset) => {
           const addressPreset =
-            nextAddressPreset ?? state.fields.addressPreset ?? "";
+            nextAddressPreset ?? state.templateFields.A.addressPreset ?? "";
           setState((s) => ({
             ...s,
-            fields: {
-              ...s.fields,
-              addressPreset,
-              address: buildAddressText(addressPreset),
-              ...(addressPreset !== "none" ? { addressExtra: "" } : {}),
+            templateFields: {
+              ...s.templateFields,
+              A: {
+                ...s.templateFields.A,
+                addressPreset,
+                address: buildAddressText(addressPreset),
+                ...(addressPreset !== "none" ? { addressExtra: "" } : {}),
+              },
             },
           }));
         }}

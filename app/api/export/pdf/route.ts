@@ -14,12 +14,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     const colorSpace: PdfColorSpace =
       raw.colorSpace === "cmyk" ? "cmyk" : "rgb";
     const state: CardState = {
+      schemaVersion: raw.schemaVersion,
       templateId: raw.templateId,
-      fields: raw.fields,
+      shared: raw.shared,
+      templateFields: raw.templateFields,
       visibility: raw.visibility,
-      locks: raw.locks,
-      assets: raw.assets,
-      qr: raw.qr,
+      assets: raw.assets ?? {},
+      qr: raw.qr ?? null,
     };
     const pdf = await buildPdf(state, { colorSpace });
     const body = new Uint8Array(pdf);

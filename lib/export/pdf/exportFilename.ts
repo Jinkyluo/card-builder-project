@@ -13,8 +13,8 @@ export function buildExportPdfFilename(
   state: CardState,
   colorSpace: PdfColorSpace
 ): string {
-  const chinese = (state.fields.name ?? "").trim();
-  const english = (state.fields.englishName ?? "").trim();
+  const chinese = (state.shared.name ?? "").trim();
+  const english = (state.shared.englishName ?? "").trim();
   const rawName = chinese || english || DEFAULT_FIELD_VALUES.name;
   const name = sanitizeExportFilenamePart(rawName);
   const brand = state.templateId === "A" ? "Shoplazza" : "Subotiz";

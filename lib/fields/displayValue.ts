@@ -1,15 +1,43 @@
+import { getEffectiveFields } from "@/lib/card/effectiveFields";
 import { formatPhoneForDisplay } from "@/lib/config/phoneRegions";
-import { DEFAULT_FIELD_VALUES, type CardState } from "@/lib/types/card";
+import {
+  DEFAULT_FIELD_VALUES,
+  SHOPLAZZA_DEFAULT_COMPANY,
+  SHOPLAZZA_DEFAULT_WEBSITE,
+  SUBOTIZ_DEFAULT_COMPANY,
+  SUBOTIZ_DEFAULT_WEBSITE,
+  type CardState,
+} from "@/lib/types/card";
 
 export function resolveFieldLayoutValue(state: CardState, key: string): string {
+  const eff = getEffectiveFields(state);
+
   if (key === "contactNote" || key === "addressExtra") {
-    return (state.fields[key] ?? "").trim();
+    return (eff[key] ?? "").trim();
   }
   if (key === "phone") {
-    const phone = state.fields.phone || DEFAULT_FIELD_VALUES.phone;
-    return formatPhoneForDisplay(state.fields.phoneRegion, phone);
+    const phone = eff.phone || DEFAULT_FIELD_VALUES.phone;
+    return formatPhoneForDisplay(eff.phoneRegion, phone);
   }
-  const value = state.fields[key]?.trim();
+
+  if (key === "company" && state.templateId === "A") {
+    const value = eff.company?.trim();
+    return value || SHOPLAZZA_DEFAULT_COMPANY;
+  }
+  if (key === "website" && state.templateId === "A") {
+    const value = eff.website?.trim();
+    return value || SHOPLAZZA_DEFAULT_WEBSITE;
+  }
+  if (key === "company" && state.templateId === "B") {
+    const value = eff.company?.trim();
+    return value || SUBOTIZ_DEFAULT_COMPANY;
+  }
+  if (key === "website" && state.templateId === "B") {
+    const value = eff.website?.trim();
+    return value || SUBOTIZ_DEFAULT_WEBSITE;
+  }
+
+  const value = eff[key]?.trim();
   return value || DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] || "";
 }
 

@@ -10,6 +10,14 @@ export const CARD_HEIGHT_PT = (55 * 72) / 25.4;
 export const CARD_WIDTH_MM = 90;
 export const CARD_HEIGHT_MM = 55;
 
+/** 正面二维码距纸上缘、右缘（mm），Shoplazza / Subotiz 一致 */
+export const QR_FRONT_MARGIN_TOP_MM = 5.5;
+export const QR_FRONT_MARGIN_RIGHT_MM = 5.5;
+
+/** 二维码边长（mm）：A=Shoplazza，B=Subotiz */
+export const QR_SIZE_MM_TEMPLATE_A = 12;
+export const QR_SIZE_MM_TEMPLATE_B = 13;
+
 /** 二维码规范边长（mm），两模板可分别覆盖 */
 export const QR_SIZE_MM_DEFAULT = 18;
 
@@ -21,7 +29,7 @@ export type CardFieldBlock = {
   fontWeight?: number;
   maxWidthMm?: number;
   useMutedColor?: boolean;
-  fontFamily?: "default" | "harmony" | "pp-right";
+  fontFamily?: "default" | "harmony" | "pp-right" | "dm-sans";
 };
 
 export type TemplateLayout = {
@@ -67,8 +75,12 @@ export const templateA: TemplateLayout = {
   ],
   backFieldKeys: [],
   qr: {
-    sizeMm: 12,
-    front: { leftMm: 72.5, topMm: 5.5 },
+    sizeMm: QR_SIZE_MM_TEMPLATE_A,
+    front: {
+      leftMm:
+        CARD_WIDTH_MM - QR_FRONT_MARGIN_RIGHT_MM - QR_SIZE_MM_TEMPLATE_A,
+      topMm: QR_FRONT_MARGIN_TOP_MM,
+    },
     back: null,
   },
   front: {
@@ -153,41 +165,108 @@ export const templateA: TemplateLayout = {
   },
 };
 
-/** 模板 B：深色正面 + 浅色反面 */
+/** 模板 B：与 Shoplazza 同版式；品牌色与 Logo 为 Subotiz */
 export const templateB: TemplateLayout = {
   id: "B",
   name: "Subotiz 名片",
-  frontFieldKeys: ["name", "title", "department", "phone", "email"],
-  backFieldKeys: ["company", "address", "addressExtra", "wechat"],
+  frontFieldKeys: [
+    "name",
+    "englishName",
+    "title",
+    "phone",
+    "email",
+    "website",
+    "company",
+  ],
+  backFieldKeys: [],
   qr: {
-    sizeMm: QR_SIZE_MM_DEFAULT,
-    front: null,
-    back: { leftMm: 90 - 18 - 5, topMm: 55 / 2 - 9 },
+    sizeMm: QR_SIZE_MM_TEMPLATE_B,
+    front: {
+      leftMm:
+        CARD_WIDTH_MM - QR_FRONT_MARGIN_RIGHT_MM - QR_SIZE_MM_TEMPLATE_B,
+      topMm: QR_FRONT_MARGIN_TOP_MM,
+    },
+    back: null,
   },
   front: {
-    accentColor: "#0f172a",
-    bg: "#0f172a",
-    text: "#f8fafc",
-    muted: "#94a3b8",
+    accentColor: "#7700ea",
+    bg: "#ecebff",
+    text: "#7700ea",
+    muted: "#7700ea",
     blocks: [
-      { key: "name", leftMm: 8, topMm: 10, fontSizePt: 12, fontWeight: 700 },
-      { key: "title", leftMm: 8, topMm: 24, fontSizePt: 8 },
-      { key: "department", leftMm: 8, topMm: 33, fontSizePt: 7 },
-      { key: "phone", leftMm: 8, topMm: 42, fontSizePt: 7 },
-      { key: "email", leftMm: 8, topMm: 49, fontSizePt: 6.5 },
+      {
+        key: "name",
+        leftMm: 5,
+        topMm: 4.7,
+        fontSizePt: 14,
+        fontWeight: 500,
+        fontFamily: "harmony",
+      },
+      {
+        key: "englishName",
+        leftMm: 16,
+        topMm: 4.7,
+        fontSizePt: 14,
+        fontWeight: 400,
+        fontFamily: "dm-sans",
+      },
+      {
+        key: "title",
+        leftMm: 5.43,
+        topMm: 10.94,
+        fontSizePt: 6.5,
+        fontFamily: "harmony",
+      },
+      {
+        key: "phone",
+        leftMm: 5.43,
+        topMm: 18.55,
+        fontSizePt: 7,
+        fontFamily: "dm-sans",
+      },
+      {
+        key: "email",
+        leftMm: 5.43,
+        topMm: 22.04,
+        fontSizePt: 7,
+        fontFamily: "dm-sans",
+      },
+      {
+        key: "website",
+        leftMm: 5.43,
+        topMm: 25.53,
+        fontSizePt: 7,
+        fontFamily: "dm-sans",
+      },
+      {
+        key: "company",
+        leftMm: 50.97,
+        topMm: 43.7,
+        fontSizePt: 6.5,
+        fontFamily: "harmony",
+      },
+      {
+        key: "address",
+        leftMm: 50.97,
+        topMm: 47.02,
+        fontSizePt: 6.5,
+        fontFamily: "harmony",
+      },
+      {
+        key: "addressExtra",
+        leftMm: 50.97,
+        topMm: 50.34,
+        fontSizePt: 6.5,
+        fontFamily: "harmony",
+      },
     ],
   },
   back: {
-    accentColor: "#0f172a",
-    bg: "#ffffff",
-    text: "#0f172a",
-    muted: "#475569",
-    blocks: [
-      { key: "company", leftMm: 8, topMm: 22, fontSizePt: 9, fontWeight: 600 },
-      { key: "address", leftMm: 8, topMm: 34, fontSizePt: 7, maxWidthMm: 52 },
-      { key: "addressExtra", leftMm: 8, topMm: 40, fontSizePt: 7, maxWidthMm: 52 },
-      { key: "wechat", leftMm: 8, topMm: 46, fontSizePt: 7 },
-    ],
+    accentColor: "#ffffff",
+    bg: "#7700ea",
+    text: "#ffffff",
+    muted: "#ffffff",
+    blocks: [],
   },
 };
 
