@@ -1,0 +1,288 @@
+/* 欢迎区背景与顶栏使用 app/studio/page.module.css（.page / .hero 等） */
+.landingBody {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  width: 100%;
+  /* 顶栏与欢迎区间距：略正 margin + 更大 padding-top 使整块继续下移 */
+  margin-top: clamp(0px, 0.8vh, 16px);
+  padding-top: clamp(24px, 3.2vh, 48px);
+  padding-bottom: clamp(32px, 10vh, 96px);
+}
+.landingOverlap {
+  position: relative;
+  z-index: 0;
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto;
+  overflow: visible;
+}
+.landingHeroCenterSpacer {
+  flex: 1;
+  min-width: 0;
+}
+/* 模板背面叠放（右压左）；白卡片压住底部略多 */
+.templateStage {
+  position: relative;
+  z-index: 1;
+  height: 244px;
+  width: 100%;
+  margin: 0 auto -52px;
+  pointer-events: none;
+  overflow: visible;
+}
+.templateDeck {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.templateCardWrap {
+  position: absolute;
+  bottom: 0;
+  width: fit-content;
+  height: fit-content;
+  cursor: pointer;
+  transition: transform 0.22s ease, filter 0.22s ease;
+  transform-origin: center bottom;
+  pointer-events: auto;
+  filter: drop-shadow(0 10px 22px rgba(15, 23, 42, 0.14));
+}
+.templateCardWrap:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 4px;
+  border-radius: 14px;
+}
+.templateCardWrap[data-selected="true"] {
+  z-index: 4;
+}
+.templateCardWrap[data-selected="false"] {
+  z-index: 2;
+}
+/* 右压左；水平间距约为原先 2 倍；整体下移使白底多挡一截 */
+.templateCardWrap[data-side="left"] {
+  left: 50%;
+  margin-left: -272px;
+  transform: rotate(-7deg) translateY(-22px);
+}
+.templateCardWrap[data-side="left"][data-selected="false"]:hover {
+  transform: rotate(-7deg) translateY(-28px);
+}
+.templateCardWrap[data-side="right"] {
+  left: 50%;
+  margin-left: -64px;
+  transform: rotate(7deg) translateY(-22px);
+}
+.templateCardWrap[data-side="right"][data-selected="false"]:hover {
+  transform: rotate(7deg) translateY(-28px);
+}
+.templateCardWrap[data-side="left"][data-selected="true"] {
+  margin-left: -274px;
+  transform: rotate(-4deg) translateY(-26px);
+}
+.templateCardWrap[data-side="right"][data-selected="true"] {
+  margin-left: -66px;
+  transform: rotate(4deg) translateY(-26px);
+}
+.templateCardInner {
+  transform-origin: center bottom;
+  width: max-content;
+  line-height: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.templateCardWrap[data-selected="false"] .templateCardInner {
+  transform: scale(0.7);
+}
+.templateCardWrap[data-selected="true"] .templateCardInner {
+  transform: scale(0.8);
+}
+
+.modalHintRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 8px;
+}
+.modal {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-top: -54px;
+  padding: 20px 22px 16px;
+  border-radius: 22px;
+  /* 液态玻璃 / 毛玻璃（浅色页面上可读性优先） */
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 10px 36px rgba(15, 23, 42, 0.09),
+    0 1px 0 rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(32px) saturate(1.75);
+  -webkit-backdrop-filter: blur(32px) saturate(1.75);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .modal {
+    background: rgba(252, 252, 254, 0.96);
+    backdrop-filter: none;
+  }
+}
+.modalTitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0 0 14px;
+  text-align: center;
+}
+.textAreaShell {
+  position: relative;
+  background: rgba(241, 245, 249, 0.72);
+  border-radius: 14px;
+  min-height: 80px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.textArea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px 52px 12px 14px;
+  background: transparent;
+  border: none;
+  resize: vertical;
+  font-size: 0.95rem;
+  outline: none;
+}
+.qrCorner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+}
+.hintText {
+  display: block;
+  margin-top: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #475569;
+}
+.modalHintRow .hintText {
+  flex: 1;
+  min-width: 0;
+}
+.errorText {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+.transitionLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+}
+.transitionCard {
+  animation: popSpin 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.transitionCardPreview {
+  border-radius: 9px;
+  overflow: hidden;
+  line-height: 0;
+  width: fit-content;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+@keyframes popSpin {
+  0% { transform: scale(0.35) rotate(-12deg); opacity: 0.6; }
+  55% { transform: scale(1.05) rotate(8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.doneShell {
+  width: min(520px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: clamp(64px, 14vh, 140px) 0 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.doneTitle {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0 0 44px;
+}
+/* 扩大指针交互区：光标在名片外、区域内仍有 3D 跟手；hover 放大绑在区域上 */
+.doneTiltZone {
+  width: min(920px, calc(100% + 64px));
+  max-width: 100%;
+  min-height: min(420px, 48vh);
+  padding: 28px min(56px, 8vw) 36px;
+  margin: 0 auto 52px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.tiltWrap {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+.doneCardScale {
+  transform: scale(1.2);
+  transform-origin: center center;
+  filter: drop-shadow(0 14px 28px rgba(15, 23, 42, 0.12));
+  transition:
+    transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* 光标在整页（main）任意处时略抬名片，与视口级倾斜配套 */
+.doneInteractivePage:hover .doneCardScale {
+  transform: scale(1.25);
+  filter: drop-shadow(0 28px 52px rgba(15, 23, 42, 0.2));
+}
+.flipInner {
+  cursor: pointer;
+  position: relative;
+  width: fit-content;
+  max-width: min(400px, 92vw);
+  margin-inline: auto;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.flipInner[data-flipped="true"] { transform: rotateY(180deg); }
+.face {
+  backface-visibility: hidden;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.faceBack {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+.doneActions {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0;
+}
+.hiddenExport {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  pointer-events: none;
+  visibility: hidden;
+}

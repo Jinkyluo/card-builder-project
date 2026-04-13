@@ -133,6 +133,9 @@ function FaceContent({
         ) {
           return null;
         }
+        if (b.key === "englishName" && !text.trim()) {
+          return null;
+        }
         const color = b.useMutedColor ? face.muted : face.text;
         const lineHeightPt = resolveBlockLineHeightPt(layout, side, b);
         return (

@@ -103,6 +103,11 @@ export function inferPhoneRegionAndLocalNumber(value: string): {
   const digits = normalizePhoneDigits(compact);
   const normalized = compact.replace(/[\s()-]/g, "");
 
+  // 中国大陆 11 位手机（1[3-9]…），须先于 +1 国家码判断，否则 130… 会被当成去掉国码 1 的美国号
+  if (/^1[3-9]\d{9}$/.test(digits)) {
+    return { phoneRegion: "CN", phone: digits };
+  }
+
   for (const option of PHONE_REGION_OPTIONS) {
     const plainDialCode = option.dialCode.replace("+", "");
     if (normalized.startsWith(option.dialCode)) {

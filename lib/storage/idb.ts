@@ -9,6 +9,8 @@ export type HistoryEntry = {
   createdAt: number;
   label: string;
   state: CardState;
+  /** 落地页粘贴原文，便于「载入到欢迎」 */
+  pasteRaw?: string;
 };
 
 interface CardStudioDB extends DBSchema {
