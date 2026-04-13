@@ -1,7 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { DownloadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import styles from "./page.module.css";
@@ -23,13 +29,56 @@ import {
 import { loadDraft, saveDraft } from "@/lib/storage/idb";
 import { getQrModules, type QrModules } from "@/lib/qr/generate";
 import { decodeQrFromFile } from "@/lib/qr/decode";
-import { buildExportPdfFilename } from "@/lib/export/pdf/exportFilename";
+import {
+  buildExportPdfFilename,
+  buildExportPngFilename,
+} from "@/lib/export/pdf/exportFilename";
 import {
   ShoplazzaAddressPresetBlock,
   SidebarFieldRow,
 } from "@/components/SidebarFieldRow";
+import { ExportFormatActions } from "@/components/ExportFormatActions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerPanel,
+  DrawerPopup,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 
 const DEBOUNCE_MS = 400;
+
+/** 与 `page.module.css` 中底栏固定布局断点一致 */
+const NARROW_EXPORT_MEDIA = "(max-width: 1024px)";
+
+/**
+ * 仅在客户端 effect 中读取 matchMedia，避免 SSR / 水合阶段触碰 window 导致异常或阻塞。
+ */
+function useNarrowLayoutForExport(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_EXPORT_MEDIA);
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return narrow;
+}
 
 /** 模板切换说明已确认后写入 localStorage，同浏览器仅首次再弹窗 */
 const TEMPLATE_SWITCH_CONFIRM_STORAGE_KEY =
@@ -94,13 +143,21 @@ function normalizeCardState(raw: unknown): CardState {
 
 export default function HomePage() {
   const [state, setState] = useState<CardState>(defaultCardState);
-  const [hydrated, setHydrated] = useState(false);
+  /** IndexedDB 草稿已尝试加载后再自动保存，避免用默认状态覆盖本地草稿 */
+  const [draftBootstrapDone, setDraftBootstrapDone] = useState(false);
   const [qrModules, setQrModules] = useState<QrModules | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [manualQr, setManualQr] = useState("");
   const [exportingRgb, setExportingRgb] = useState(false);
   const [exportingCmyk, setExportingCmyk] = useState(false);
+  const [exportingPng, setExportingPng] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const narrowLayout = useNarrowLayoutForExport();
   const qrFileInputRef = useRef<HTMLInputElement | null>(null);
+  const frontPreviewRef = useRef<HTMLDivElement | null>(null);
+  const backPreviewRef = useRef<HTMLDivElement | null>(null);
+  const exportFrontRef = useRef<HTMLDivElement | null>(null);
+  const exportBackRef = useRef<HTMLDivElement | null>(null);
   const selectedPhoneRegion = getPhoneRegionOption(state.shared.phoneRegion);
   const isNameFieldVisible = (key: string) => state.visibility[key] !== false;
   const phoneError = validatePhoneForRegion(
@@ -114,7 +171,12 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const failsafeMs = 4000;
+    const failsafeId = globalThis.setTimeout(() => {
+      if (!cancelled) setDraftBootstrapDone(true);
+    }, failsafeMs);
+
+    void (async () => {
       try {
         const draft = await loadDraft();
         if (!cancelled && draft) {
@@ -125,18 +187,21 @@ export default function HomePage() {
       } catch (error) {
         console.error("Failed to load draft", error);
       } finally {
-        if (!cancelled) setHydrated(true);
+        globalThis.clearTimeout(failsafeId);
+        if (!cancelled) setDraftBootstrapDone(true);
       }
     })();
+
     return () => {
       cancelled = true;
+      globalThis.clearTimeout(failsafeId);
     };
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!draftBootstrapDone) return;
     persistDraft(state);
-  }, [state, hydrated, persistDraft]);
+  }, [state, draftBootstrapDone, persistDraft]);
 
   useEffect(() => {
     const p = state.qr?.payload;
@@ -265,6 +330,7 @@ export default function HomePage() {
       anchor.download = filename;
       anchor.click();
       URL.revokeObjectURL(url);
+      setExportMenuOpen(false);
     } catch (error) {
       console.error("Failed to export PDF", error);
       window.alert(
@@ -275,15 +341,37 @@ export default function HomePage() {
     }
   };
 
-  if (!hydrated) {
-    return (
-      <main className={styles.page}>
-        <div className={styles.loadingShell}>
-          <div className={styles.loadingCard}>加载中…</div>
-        </div>
-      </main>
-    );
-  }
+  const onExportPng = useCallback(async () => {
+    const front = exportFrontRef.current ?? frontPreviewRef.current;
+    const back = exportBackRef.current ?? backPreviewRef.current;
+    setExportingPng(true);
+    try {
+      if (!front || !back) {
+        throw new Error("预览未就绪，请稍后重试。");
+      }
+      const { compositePreviewFacesToPngBlob } = await import(
+        "@/lib/export/png/compositePreviewPng"
+      );
+      const blob = await compositePreviewFacesToPngBlob(front, back, {
+        gapPx: 0,
+        outputWidthPx: 1920,
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = buildExportPngFilename(state);
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setExportMenuOpen(false);
+    } catch (error) {
+      console.error("Failed to export PNG", error);
+      window.alert(
+        error instanceof Error ? error.message : "导出 PNG 失败，请重试。"
+      );
+    } finally {
+      setExportingPng(false);
+    }
+  }, [state]);
 
   return (
     <main className={styles.page} id="top">
@@ -348,29 +436,19 @@ export default function HomePage() {
             <div className={styles.heroActions}>
               <button
                 type="button"
-                disabled={exportingRgb}
-                onClick={() => void onExportPdf("rgb")}
+                disabled={exportingRgb || exportingCmyk || exportingPng}
+                onClick={() => setExportMenuOpen(true)}
                 className={cn(
                   styles.buttonBase,
                   styles.primaryButton,
-                  exportingRgb && styles.buttonDisabled
+                  (exportingRgb || exportingCmyk || exportingPng) &&
+                    styles.buttonDisabled
                 )}
               >
                 <DownloadIcon />
-                {exportingRgb ? "导出中…" : "导出电子版"}
-              </button>
-              <button
-                type="button"
-                disabled={exportingCmyk}
-                onClick={() => void onExportPdf("cmyk")}
-                className={cn(
-                  styles.buttonBase,
-                  styles.secondaryButton,
-                  exportingCmyk && styles.buttonDisabled
-                )}
-              >
-                <DownloadIcon />
-                {exportingCmyk ? "导出中…" : "导出印刷版"}
+                {exportingRgb || exportingCmyk || exportingPng
+                  ? "导出中…"
+                  : "导出"}
               </button>
             </div>
           </div>
@@ -493,6 +571,7 @@ export default function HomePage() {
               <div className={styles.previewFaces}>
                 <div className={styles.previewFaceBlock}>
                   <CardFacePreview
+                    ref={frontPreviewRef}
                     state={state}
                     side="front"
                     qrModules={qrModules}
@@ -502,6 +581,7 @@ export default function HomePage() {
 
                 <div className={styles.previewFaceBlock}>
                   <CardFacePreview
+                    ref={backPreviewRef}
                     state={state}
                     side="back"
                     qrModules={qrModules}
@@ -511,6 +591,91 @@ export default function HomePage() {
             </section>
           </div>
         </div>
+
+        <div
+          className="pointer-events-none fixed top-0 left-[-10000px] z-0 flex flex-col gap-0"
+          aria-hidden
+        >
+          <CardFacePreview
+            ref={exportFrontRef}
+            variant="export"
+            state={state}
+            side="front"
+            qrModules={qrModules}
+          />
+          <CardFacePreview
+            ref={exportBackRef}
+            variant="export"
+            state={state}
+            side="back"
+            qrModules={qrModules}
+          />
+        </div>
+
+        <Dialog
+          open={exportMenuOpen && !narrowLayout}
+          onOpenChange={(open) => {
+            if (!open) setExportMenuOpen(false);
+          }}
+        >
+          <DialogPopup>
+            <DialogHeader>
+              <DialogTitle>选择导出格式</DialogTitle>
+              <DialogDescription>
+                下载电子版或印刷版文件；PNG 为与预览一致的屏幕色彩图片（正反面纵向拼接）。
+              </DialogDescription>
+            </DialogHeader>
+            <DialogPanel className="flex flex-col gap-2">
+              <ExportFormatActions
+                exportingRgb={exportingRgb}
+                exportingPng={exportingPng}
+                exportingCmyk={exportingCmyk}
+                onRgbPdf={() => void onExportPdf("rgb")}
+                onPng={() => void onExportPng()}
+                onCmykPdf={() => void onExportPdf("cmyk")}
+              />
+            </DialogPanel>
+            <DialogFooter>
+              <DialogClose render={<Button variant="ghost" />}>
+                取消
+              </DialogClose>
+            </DialogFooter>
+          </DialogPopup>
+        </Dialog>
+
+        <Drawer
+          open={exportMenuOpen && narrowLayout}
+          onOpenChange={(open) => {
+            if (!open) setExportMenuOpen(false);
+          }}
+        >
+          <DrawerPopup showBar>
+            <DrawerHeader className="text-center">
+              <DrawerTitle>选择导出格式</DrawerTitle>
+              <DrawerDescription>
+                下载电子版或印刷版文件；PNG 为与预览一致的屏幕色彩图片（正反面纵向拼接）。
+              </DrawerDescription>
+            </DrawerHeader>
+            <DrawerPanel className="flex flex-col gap-2 px-6 pb-2">
+              <ExportFormatActions
+                exportingRgb={exportingRgb}
+                exportingPng={exportingPng}
+                exportingCmyk={exportingCmyk}
+                onRgbPdf={() => void onExportPdf("rgb")}
+                onPng={() => void onExportPng()}
+                onCmykPdf={() => void onExportPdf("cmyk")}
+              />
+            </DrawerPanel>
+            <DrawerFooter
+              className="justify-center sm:justify-center"
+              variant="bare"
+            >
+              <DrawerClose render={<Button variant="outline" />}>
+                关闭
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerPopup>
+        </Drawer>
       </div>
     </main>
   );

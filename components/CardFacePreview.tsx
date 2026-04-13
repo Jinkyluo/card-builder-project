@@ -1,5 +1,6 @@
 "use client";
 
+import { forwardRef } from "react";
 import type { CardState } from "@/lib/types/card";
 import {
   BACK_LOGO_BOUNDS_MM,
@@ -24,11 +25,23 @@ import { resolveFieldDisplayValue } from "@/lib/fields/displayValue";
 import { QrSvgDom } from "@/components/QrSvgDom";
 import type { QrModules } from "@/lib/qr/generate";
 
+/** 固定小数位，避免 SSR 与浏览器浮点序列化不一致导致水合警告 */
+function layoutMm(n: number): string {
+  return `${Number(n.toFixed(4))}mm`;
+}
+
+function layoutPt(n: number): string {
+  return `${Number(n.toFixed(4))}pt`;
+}
+
 type Props = {
   state: CardState;
   side: "front" | "back";
   qrModules: QrModules | null;
   onQrPlaceholderClick?: () => void;
+  className?: string;
+  /** `export`：无圆角与 ring，用于 PNG 栅格化；默认 `preview` 与实时预览一致 */
+  variant?: "preview" | "export";
 };
 
 function FaceContent({
@@ -121,19 +134,19 @@ function FaceContent({
           return null;
         }
         const color = b.useMutedColor ? face.muted : face.text;
+        const lineHeightPt = resolveBlockLineHeightPt(layout, side, b);
         return (
           <div
             key={b.key}
             className="absolute leading-tight"
+            suppressHydrationWarning
             style={{
-              left: `${resolveBlockLeftMm(layout, side, state, b)}mm`,
-              top: `${resolveBlockTopMm(layout, side, state, b)}mm`,
-              fontSize: `${b.fontSizePt}pt`,
+              left: layoutMm(resolveBlockLeftMm(layout, side, state, b)),
+              top: layoutMm(resolveBlockTopMm(layout, side, state, b)),
+              fontSize: layoutPt(b.fontSizePt),
               fontWeight: b.fontWeight ?? 400,
               lineHeight:
-                resolveBlockLineHeightPt(layout, side, b) != null
-                  ? `${resolveBlockLineHeightPt(layout, side, b)}pt`
-                  : undefined,
+                lineHeightPt != null ? layoutPt(lineHeightPt) : undefined,
               whiteSpace: "pre-wrap",
               color,
               fontFamily:
@@ -144,7 +157,8 @@ function FaceContent({
                     : b.fontFamily === "dm-sans"
                       ? 'var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui, sans-serif'
                       : undefined,
-              maxWidth: b.maxWidthMm != null ? `${b.maxWidthMm}mm` : undefined,
+              maxWidth:
+                b.maxWidthMm != null ? layoutMm(b.maxWidthMm) : undefined,
             }}
           >
             {text}
@@ -195,33 +209,47 @@ function FaceContent({
   );
 }
 
-export function CardFacePreview({
-  state,
-  side,
-  qrModules,
-  onQrPlaceholderClick,
-}: Props) {
-  const layout = getTemplate(state.templateId);
-  const face = layout[side];
+export const CardFacePreview = forwardRef<HTMLDivElement, Props>(
+  function CardFacePreview(
+    {
+      state,
+      side,
+      qrModules,
+      onQrPlaceholderClick,
+      className,
+      variant = "preview",
+    },
+    ref
+  ) {
+    const layout = getTemplate(state.templateId);
+    const face = layout[side];
 
-  return (
-    <div
-      className="relative overflow-hidden rounded-sm shadow-md ring-1 ring-black/10"
-      style={{
-        width: `${CARD_WIDTH_MM}mm`,
-        height: `${CARD_HEIGHT_MM}mm`,
-        backgroundColor: face.bg,
-        fontFamily:
-          'var(--font-harmony, "HarmonyOS Sans", "Noto Sans SC", system-ui, sans-serif)',
-      }}
-    >
-      <FaceContent
-        layout={layout}
-        side={side}
-        state={state}
-        qrModules={qrModules}
-        onQrPlaceholderClick={onQrPlaceholderClick}
-      />
-    </div>
-  );
-}
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "relative overflow-hidden",
+          variant === "preview" && "rounded-sm shadow-md ring-1 ring-black/10",
+          className
+        )}
+        style={{
+          width: `${CARD_WIDTH_MM}mm`,
+          height: `${CARD_HEIGHT_MM}mm`,
+          backgroundColor: face.bg,
+          fontFamily:
+            'var(--font-harmony, "HarmonyOS Sans", "Noto Sans SC", system-ui, sans-serif)',
+        }}
+      >
+        <FaceContent
+          layout={layout}
+          side={side}
+          state={state}
+          qrModules={qrModules}
+          onQrPlaceholderClick={onQrPlaceholderClick}
+        />
+      </div>
+    );
+  }
+);
+
+CardFacePreview.displayName = "CardFacePreview";

@@ -39,34 +39,12 @@ function estimateTextWidthPx(text: string, fontSizePt: number): number {
     }, 0);
 }
 
+/**
+ * 宽度估算须与 SSR 一致，否则动态 `left` 等在客户端用 canvas 测量会与服务器 HTML 不一致，触发水合警告。
+ */
 function measureTextWidthPx(block: CardFieldBlock, text: string): number {
   if (!text) return 0;
-
-  const fontSize = `${block.fontSizePt}pt`;
-  const fontWeight = String(block.fontWeight ?? 400);
-  const fontFamily =
-    block.fontFamily === "harmony"
-      ? '"HarmonyOS Sans SC Embedded", "HarmonyOS Sans SC", sans-serif'
-      : block.fontFamily === "pp-right"
-        ? '"PP Right Grotesk Wide Regular", sans-serif'
-        : block.fontFamily === "dm-sans"
-          ? '"DM Sans", sans-serif'
-          : 'system-ui, sans-serif';
-
-  if (typeof document === "undefined") {
-    return estimateTextWidthPx(text, block.fontSizePt);
-  }
-
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return estimateTextWidthPx(text, block.fontSizePt);
-  }
-
-  ctx.font = `${fontWeight} ${fontSize} ${fontFamily}`;
-  return text
-    .split("\n")
-    .reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+  return estimateTextWidthPx(text, block.fontSizePt);
 }
 
 export function resolveBlockLeftMm(

@@ -21,3 +21,16 @@ export function buildExportPdfFilename(
   const edition = colorSpace === "cmyk" ? "印刷版" : "电子版";
   return `${name}名片-${brand}-${edition}.pdf`;
 }
+
+/**
+ * 电子版栅格图，与 RGB PDF 命名中的「电子版」一致。
+ * 例：`张三名片-Shoplazza-电子版.png`
+ */
+export function buildExportPngFilename(state: CardState): string {
+  const chinese = (state.shared.name ?? "").trim();
+  const english = (state.shared.englishName ?? "").trim();
+  const rawName = chinese || english || DEFAULT_FIELD_VALUES.name;
+  const name = sanitizeExportFilenamePart(rawName);
+  const brand = state.templateId === "A" ? "Shoplazza" : "Subotiz";
+  return `${name}名片-${brand}-电子版.png`;
+}
