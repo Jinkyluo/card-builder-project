@@ -1,3 +1,17 @@
+/* 过渡彩色底 wipe：mask 分界线下移（视觉上向上刷），需可插值自定义属性 */
+@property --transition-bg-wipe {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 112%;
+}
+
+/* 欢迎页：新 color_bg.svg，构图锚定上半（center top + cover）+ 浅色罩层 */
+main.landingFlowPageBg {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.6) 100%),
+    #f1f5f9 url("/design/color_bg.svg") center top / cover no-repeat;
+}
+
 /* 欢迎区背景与顶栏使用 app/studio/page.module.css（.page / .hero 等） */
 .landingBody {
   flex: 1 1 auto;
@@ -191,9 +205,71 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+  overflow: hidden;
+  background: var(--studio-page-background);
 }
+
+/* 过渡：同源素材；mask 羽化刷边自下而上，露出底层浅灰；罩层更薄以保留饱和度 */
+.transitionBgArt {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  --transition-bg-wipe: 112%;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(248, 250, 252, 0.08) 34%,
+      rgba(236, 242, 250, 0.28) 72%,
+      rgba(228, 235, 245, 0.42) 100%
+    ),
+    url("/design/color_bg.svg");
+  background-color: #e8edf4;
+  background-repeat: no-repeat, no-repeat;
+  background-size: 100% 100%, cover;
+  background-position: center top, center 0%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(var(--transition-bg-wipe) - 10%),
+    transparent calc(var(--transition-bg-wipe) + 6%)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(var(--transition-bg-wipe) - 10%),
+    transparent calc(var(--transition-bg-wipe) + 6%)
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  will-change: --transition-bg-wipe;
+  animation: transitionBgWipeUp 1.1s cubic-bezier(0.33, 0.85, 0.2, 1) forwards;
+}
+
+@keyframes transitionBgWipeUp {
+  0% {
+    --transition-bg-wipe: 112%;
+  }
+  100% {
+    --transition-bg-wipe: -14%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transitionBgArt {
+    animation: none;
+    opacity: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 .transitionCard {
+  position: relative;
+  z-index: 1;
   animation: popSpin 1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .transitionCardPreview {
@@ -211,34 +287,49 @@
 .doneShell {
   width: min(520px, calc(100% - 32px));
   margin: 0 auto;
-  padding: clamp(64px, 14vh, 140px) 0 48px;
+  padding: 24px 0 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
 }
+
+/* 完成页：标题 + 卡片区 + 按钮，固定间距作为一整块 */
+.doneBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
 .doneTitle {
   font-size: 1.5rem;
   font-weight: 800;
-  margin: 0 0 44px;
+  margin: 0 0 24px;
 }
-/* 扩大指针交互区：光标在名片外、区域内仍有 3D 跟手；hover 放大绑在区域上 */
+/* 与 black-card-interaction：perspective 容器内 pointer 驱动 3D + 光晕 */
 .doneTiltZone {
   width: min(920px, calc(100% + 64px));
   max-width: 100%;
-  min-height: min(420px, 48vh);
-  padding: 28px min(56px, 8vw) 36px;
-  margin: 0 auto 52px;
+  min-height: 0;
+  padding: 24px min(56px, 8vw) 24px;
+  margin: 0 auto 48px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-.tiltWrap {
   perspective: 1200px;
-  transform-style: preserve-3d;
+  position: relative;
 }
+
+.cardTiltWrapper {
+  transform-style: preserve-3d;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
+  cursor: pointer;
+}
+
 .doneCardScale {
   transform: scale(1.2);
   transform-origin: center center;
@@ -247,11 +338,12 @@
     transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
     filter 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-/* 光标在整页（main）任意处时略抬名片，与视口级倾斜配套 */
-.doneInteractivePage:hover .doneCardScale {
+
+.doneTiltZone:hover .doneCardScale {
   transform: scale(1.25);
   filter: drop-shadow(0 28px 52px rgba(15, 23, 42, 0.2));
 }
+
 .flipInner {
   cursor: pointer;
   position: relative;
@@ -261,8 +353,46 @@
   transform-style: preserve-3d;
   transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+
+/* 斜条高光：200% 线性渐变 + translate（TS 映射为 [-50%,0%] 分量，50→-25% 居中），.face overflow 裁切 */
+.cardGlare {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 200%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 42%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 58%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.doneTiltZone:hover .cardGlare {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardTiltWrapper,
+  .doneCardScale,
+  .cardGlare {
+    transition: none !important;
+  }
+
+  .doneTiltZone:hover .cardGlare {
+    opacity: 0;
+  }
+}
 .flipInner[data-flipped="true"] { transform: rotateY(180deg); }
 .face {
+  position: relative;
   backface-visibility: hidden;
   border-radius: 9px;
   overflow: hidden;

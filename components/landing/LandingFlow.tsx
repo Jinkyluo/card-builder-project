@@ -40,8 +40,10 @@ import {
 import type { CardState, TemplateId } from "@/lib/types/card";
 import { defaultCardState } from "@/lib/types/card";
 import {
+  applyLandingDoneTemplateSwitch,
   buildCardStateFromLandingInput,
   landingGenerateBlockedReason,
+  stripSubotizAddressExtra,
 } from "@/lib/landing/parsePersonalPaste";
 import {
   buildExportPdfFilename,
@@ -71,6 +73,11 @@ function miniState(id: TemplateId): CardState {
   return { ...defaultCardState(), templateId: id };
 }
 
+/** 斜条 glare 0–100% → translate 分量，限制在 [-50%, 0%]（50→-25% 为初始居中） */
+function doneCardGlareTranslatePct(pct: number): number {
+  return Math.max(-50, Math.min(0, -0.5 * pct));
+}
+
 export function LandingFlow(): JSX.Element {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("welcome");
@@ -83,6 +90,8 @@ export function LandingFlow(): JSX.Element {
   const [doneQrModules, setDoneQrModules] = useState<QrModules | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
+  const [glare, setGlare] = useState({ x: 50, y: 50 });
+  const reducedMotionRef = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<HistoryEntry[]>([]);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -91,11 +100,15 @@ export function LandingFlow(): JSX.Element {
   const [exportingPng, setExportingPng] = useState(false);
   const narrowLayout = useNarrowLayoutForExport();
   const qrInputRef = useRef<HTMLInputElement>(null);
+  const frontFaceRef = useRef<HTMLDivElement>(null);
+  const backFaceRef = useRef<HTMLDivElement>(null);
   const frontPreviewRef = useRef<HTMLDivElement>(null);
   const exportFrontRef = useRef<HTMLDivElement>(null);
   const exportBackRef = useRef<HTMLDivElement>(null);
   const pushedDoneRef = useRef(false);
   const transitionCardRef = useRef<HTMLDivElement>(null);
+  /** 完成页仅切换模板时的过渡：结束后不写历史记录 */
+  const landingTransitionSkipHistoryRef = useRef(false);
 
   const shopMini = useMemo(() => miniState("A"), []);
   const subMini = useMemo(() => miniState("B"), []);
@@ -134,6 +147,7 @@ export function LandingFlow(): JSX.Element {
       setPhase((ph) => (ph === "done" ? "welcome" : ph));
       setFlipped(false);
       setTilt({ rx: 0, ry: 0 });
+      setGlare({ x: 50, y: 50 });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -201,6 +215,7 @@ export function LandingFlow(): JSX.Element {
       return;
     }
     if (!qrPayload) return;
+    landingTransitionSkipHistoryRef.current = false;
     const next = buildCardStateFromLandingInput({
       templateId: selectedTemplate,
       pasteRaw: pasteText,
@@ -208,6 +223,14 @@ export function LandingFlow(): JSX.Element {
     });
     void saveDraft(next);
     setDoneState(next);
+    setPhase("transition");
+  };
+
+  const onDonePageTemplateSwitch = (id: TemplateId) => {
+    if (phase !== "done" || !doneState || id === doneState.templateId) return;
+    landingTransitionSkipHistoryRef.current = true;
+    setSelectedTemplate(id);
+    setFlipped(false);
     setPhase("transition");
   };
 
@@ -224,13 +247,23 @@ export function LandingFlow(): JSX.Element {
       committed = true;
       void (async () => {
         if (doneState) {
-          await addHistory({
-            id: newHistoryId(),
-            createdAt: Date.now(),
-            label: doneState.shared.name.trim() || "未命名名片",
-            state: doneState,
-            pasteRaw: pasteText,
-          });
+          const merged = applyLandingDoneTemplateSwitch(
+            doneState,
+            selectedTemplate,
+          );
+          setDoneState(merged);
+          setSelectedTemplate(merged.templateId);
+          await saveDraft(merged);
+          if (!landingTransitionSkipHistoryRef.current) {
+            await addHistory({
+              id: newHistoryId(),
+              createdAt: Date.now(),
+              label: merged.shared.name.trim() || "未命名名片",
+              state: merged,
+              pasteRaw: pasteText,
+            });
+          }
+          landingTransitionSkipHistoryRef.current = false;
         }
         setPhase("done");
       })();
@@ -251,7 +284,7 @@ export function LandingFlow(): JSX.Element {
       window.clearTimeout(timer);
       el?.removeEventListener("animationend", onEnd);
     };
-  }, [phase, doneState, pasteText]);
+  }, [phase, doneState, pasteText, selectedTemplate]);
 
   const onExportPdf = async (colorSpace: "rgb" | "cmyk") => {
     if (!doneState) return;
@@ -315,41 +348,80 @@ export function LandingFlow(): JSX.Element {
     }
   }, [doneState]);
 
-  const transitionState = useMemo(() => {
+  const transitionState = useMemo((): CardState => {
     if (!doneState) return miniState(selectedTemplate);
-    return { ...doneState, templateId: selectedTemplate };
+    const id = selectedTemplate;
+    const base: CardState = { ...doneState, templateId: id };
+    if (id === "B") {
+      return {
+        ...base,
+        templateFields: {
+          ...base.templateFields,
+          B: {
+            ...base.templateFields.B,
+            addressExtra: stripSubotizAddressExtra(
+              base.templateFields.B.addressExtra,
+            ),
+          },
+        },
+      };
+    }
+    return base;
   }, [doneState, selectedTemplate]);
 
-  /* 完成页：整视口跟手 3D（参考 Variant card-wrapper 的 rotateX/rotateY 思路） */
   useEffect(() => {
-    if (phase !== "done" || !doneState) return;
-    const clamp = (n: number) => Math.max(-1, Math.min(1, n));
-    const smoothstep = (e0: number, e1: number, x: number) => {
-      const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-      return t * t * (3 - 2 * t);
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      reducedMotionRef.current = mq.matches;
+      if (mq.matches) {
+        setTilt({ rx: 0, ry: 0 });
+        setGlare({ x: 50, y: 50 });
+      }
     };
-    const onMove = (e: MouseEvent) => {
-      const w = window.innerWidth || 1;
-      const h = window.innerHeight || 1;
-      const nx = (e.clientX / w - 0.5) * 2;
-      const ny = (e.clientY / h - 0.5) * 2;
-      const cnx = clamp(nx);
-      const cny = clamp(ny);
-      const rx = cny * -24;
-      const yNorm = e.clientY / h;
-      const rySign = 1 - 2 * smoothstep(0.46, 0.54, yNorm);
-      const ry = rySign * cnx * 28;
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const onDoneTiltMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (reducedMotionRef.current) return;
+      const zone = e.currentTarget;
+      const r = zone.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      const centerX = r.width / 2;
+      const centerY = r.height / 2;
+      const rx = (y - centerY) / 15;
+      const ry = (centerX - x) / 15;
       setTilt({ rx, ry });
-    };
-    window.addEventListener("mousemove", onMove, { passive: true });
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-    };
-  }, [phase, doneState]);
+
+      // 高光必须与「当前名片面」同一坐标系：用可见面的 getBoundingClientRect，不能用交互区比例
+      const faceEl = flipped ? backFaceRef.current : frontFaceRef.current;
+      if (faceEl) {
+        const fr = faceEl.getBoundingClientRect();
+        if (fr.width > 0 && fr.height > 0) {
+          const gx = ((e.clientX - fr.left) / fr.width) * 100;
+          const gy = ((e.clientY - fr.top) / fr.height) * 100;
+          setGlare({
+            x: Math.min(100, Math.max(0, gx)),
+            y: Math.min(100, Math.max(0, gy)),
+          });
+        }
+      }
+    },
+    [flipped],
+  );
+
+  const onDoneTiltLeave = useCallback(() => {
+    setTilt({ rx: 0, ry: 0 });
+    setGlare({ x: 50, y: 50 });
+  }, []);
 
   useEffect(() => {
     if (phase !== "done") {
       setTilt({ rx: 0, ry: 0 });
+      setGlare({ x: 50, y: 50 });
     }
   }, [phase]);
 
@@ -364,6 +436,7 @@ export function LandingFlow(): JSX.Element {
   if (phase === "transition" && doneState) {
     return (
       <div className={styles.transitionLayer} aria-busy>
+        <div className={styles.transitionBgArt} aria-hidden />
         <div ref={transitionCardRef} className={styles.transitionCard}>
           <div className={styles.transitionCardPreview}>
             <CardFacePreview
@@ -380,69 +453,160 @@ export function LandingFlow(): JSX.Element {
 
   if (phase === "done" && doneState) {
     return (
-      <main className={cn(studio.page, styles.doneInteractivePage)}>
-        <div className={styles.doneShell}>
-          <h1 className={styles.doneTitle}>完成啦!</h1>
-          <div className={styles.doneTiltZone}>
-            <div
-              className={styles.tiltWrap}
-              style={{
-                transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
-              }}
-            >
-              <div className={styles.doneCardScale}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className={styles.flipInner}
-                  data-flipped={flipped ? "true" : "false"}
-                  onClick={() => setFlipped((f) => !f)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setFlipped((f) => !f);
-                    }
-                  }}
-                  aria-label={flipped ? "显示正面" : "显示背面"}
-                >
-                  <div className={styles.face}>
-                    <CardFacePreview
-                      ref={frontPreviewRef}
-                      state={doneState}
-                      side="front"
-                      qrModules={doneQrModules}
-                    />
-                  </div>
-                  <div className={`${styles.face} ${styles.faceBack}`}>
-                    <CardFacePreview
-                      state={doneState}
-                      side="back"
-                      qrModules={doneQrModules}
-                    />
-                  </div>
+      <main className={studio.page} id="top">
+        <div className={studio.shell}>
+          <div aria-hidden="true" className={studio.pageGuides}>
+            <span className={studio.pageGuideLineLeft} />
+            <span className={studio.pageGuideLineRight} />
+          </div>
+
+          <section className={studio.hero}>
+            <div className={studio.heroHeader}>
+              <span aria-hidden="true" className={studio.heroGuideLineLeft} />
+              <span aria-hidden="true" className={studio.heroGuideLineRight} />
+              <span aria-hidden="true" className={studio.heroGuideNodeLeft} />
+              <span aria-hidden="true" className={studio.heroGuideNodeRight} />
+              <a href="/#welcome" className={studio.brandLink}>
+                <Image
+                  src="/design/logo-red.svg"
+                  alt="Shoplazza"
+                  width={127}
+                  height={30}
+                  className={studio.brandLogo}
+                  priority
+                />
+                <span className={studio.brandText}>Card Builder</span>
+              </a>
+              <div
+                className={cn(studio.heroCenter, styles.landingHeroCenterSpacer)}
+                aria-hidden
+              />
+              <div className={studio.heroActions}>
+                <div className={studio.templateSwitch} aria-label="模板切换">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      studio.templateSwitchThumb,
+                      doneState.templateId === "A"
+                        ? studio.templateSwitchThumbShoplazza
+                        : studio.templateSwitchThumbSubotiz,
+                    )}
+                  />
+                  {(["A", "B"] as const).map((tid) => {
+                    const active = doneState.templateId === tid;
+                    const label = tid === "A" ? "Shoplazza" : "Subotiz";
+                    return (
+                      <button
+                        key={tid}
+                        type="button"
+                        onClick={() => onDonePageTemplateSwitch(tid)}
+                        className={cn(
+                          studio.templateSwitchButton,
+                          active && studio.templateSwitchButtonOnThumb,
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
-          </div>
-          <div className={styles.doneActions}>
-            <Button
-              type="button"
-              variant="default"
-              className="h-10 min-h-10 shrink-0 rounded-full px-6 sm:h-10"
-              onClick={() => setExportMenuOpen(true)}
-              disabled={exportingRgb || exportingCmyk || exportingPng}
-            >
-              <DownloadIcon className="mr-1 size-4" />
-              导出
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 min-h-10 shrink-0 rounded-full px-6 sm:h-10"
-              onClick={() => router.push("/studio")}
-            >
-              进入编辑器
-            </Button>
+          </section>
+
+          <div className={styles.landingBody}>
+            <div className={styles.doneShell}>
+              <div className={styles.doneBlock}>
+                <h1 className={styles.doneTitle}>完成啦!</h1>
+                <div
+                  className={styles.doneTiltZone}
+                  onMouseMove={onDoneTiltMove}
+                  onMouseLeave={onDoneTiltLeave}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setFlipped((f) => !f);
+                    }
+                  }}
+                >
+                  <div
+                    className={styles.cardTiltWrapper}
+                    style={{
+                      transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+                    }}
+                  >
+                    <div className={styles.doneCardScale}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className={styles.flipInner}
+                        data-flipped={flipped ? "true" : "false"}
+                        onClick={() => setFlipped((f) => !f)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setFlipped((f) => !f);
+                          }
+                        }}
+                        aria-label={flipped ? "显示正面" : "显示背面"}
+                      >
+                        <div ref={frontFaceRef} className={styles.face}>
+                          <CardFacePreview
+                            ref={frontPreviewRef}
+                            state={doneState}
+                            side="front"
+                            qrModules={doneQrModules}
+                          />
+                          <div
+                            className={styles.cardGlare}
+                            style={{
+                              transform: `translate(${doneCardGlareTranslatePct(glare.x)}%, ${doneCardGlareTranslatePct(glare.y)}%)`,
+                            }}
+                            aria-hidden
+                          />
+                        </div>
+                        <div
+                          ref={backFaceRef}
+                          className={`${styles.face} ${styles.faceBack}`}
+                        >
+                          <CardFacePreview
+                            state={doneState}
+                            side="back"
+                            qrModules={doneQrModules}
+                          />
+                          <div
+                            className={styles.cardGlare}
+                            style={{
+                              transform: `translate(${doneCardGlareTranslatePct(100 - glare.x)}%, ${doneCardGlareTranslatePct(glare.y)}%)`,
+                            }}
+                            aria-hidden
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.doneActions}>
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="h-10 min-h-10 shrink-0 rounded-full px-6 sm:h-10"
+                    onClick={() => setExportMenuOpen(true)}
+                    disabled={exportingRgb || exportingCmyk || exportingPng}
+                  >
+                    <DownloadIcon className="mr-1 size-4" />
+                    导出
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 min-h-10 shrink-0 rounded-full px-6 sm:h-10"
+                    onClick={() => router.push("/studio")}
+                  >
+                    进入编辑器
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -525,7 +689,7 @@ export function LandingFlow(): JSX.Element {
   }
 
   return (
-    <main className={studio.page} id="top">
+    <main className={cn(studio.page, styles.landingFlowPageBg)} id="top">
       <div className={studio.shell}>
         <div aria-hidden="true" className={studio.pageGuides}>
           <span className={studio.pageGuideLineLeft} />

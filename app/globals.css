@@ -49,7 +49,6 @@
   --font-pp-right: "PP Right Grotesk Wide Regular";
   --font-dm-sans: "DM Sans";
   --font-sans:
-    "HarmonyOS Sans SC Embedded",
     "PingFang SC",
     "Hiragino Sans GB",
     "Microsoft YaHei",
@@ -131,6 +130,10 @@
   --ui-shadow-soft: 0 4px 20px rgba(15, 23, 42, 0.04);
   --ui-shadow-card: 0 12px 32px rgba(15, 23, 42, 0.06);
   --ui-shadow-pop: 0 18px 44px rgba(15, 23, 42, 0.1);
+  /* Studio / 落地完成页：与 page.module.css .page 一致的全页浅灰底 */
+  --studio-page-background:
+    radial-gradient(circle at top left, rgba(15, 23, 42, 0.04), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .dark {

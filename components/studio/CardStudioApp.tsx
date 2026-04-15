@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -29,6 +30,7 @@ import {
 import { loadDraft, saveDraft } from "@/lib/storage/idb";
 import { getQrModules, type QrModules } from "@/lib/qr/generate";
 import { decodeQrFromFile } from "@/lib/qr/decode";
+import { stripSubotizAddressExtra } from "@/lib/landing/parsePersonalPaste";
 import {
   buildExportPdfFilename,
   buildExportPngFilename,
@@ -252,7 +254,24 @@ export function CardStudioApp() {
       }
     }
 
-    setState((s) => ({ ...s, templateId: id }));
+    setState((s) => {
+      if (id === "B") {
+        return {
+          ...s,
+          templateId: id,
+          templateFields: {
+            ...s.templateFields,
+            B: {
+              ...s.templateFields.B,
+              addressExtra: stripSubotizAddressExtra(
+                s.templateFields.B.addressExtra,
+              ),
+            },
+          },
+        };
+      }
+      return { ...s, templateId: id };
+    });
   };
 
   const onQrFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -386,7 +405,12 @@ export function CardStudioApp() {
             <span aria-hidden="true" className={styles.heroGuideLineRight} />
             <span aria-hidden="true" className={styles.heroGuideNodeLeft} />
             <span aria-hidden="true" className={styles.heroGuideNodeRight} />
-            <a href="#top" className={styles.brandLink}>
+            <Link
+              href="/#welcome"
+              className={styles.brandLink}
+              prefetch={false}
+              aria-label="返回欢迎页"
+            >
               <Image
                 src="/design/logo-red.svg"
                 alt="Shoplazza"
@@ -396,7 +420,7 @@ export function CardStudioApp() {
                 priority
               />
               <span className={styles.brandText}>Card Builder</span>
-            </a>
+            </Link>
 
             <div className={styles.heroCenter}>
               <div className={styles.templateSwitch} aria-label="模板切换">

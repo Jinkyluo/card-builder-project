@@ -26,7 +26,7 @@ export function ExportFormatActions({
       <Button
         type="button"
         variant="default"
-        className="w-full"
+        className="h-10 min-h-10 w-full rounded-full"
         loading={exportingRgb}
         disabled={busy && !exportingRgb}
         onClick={() => void onRgbPdf()}
@@ -36,7 +36,7 @@ export function ExportFormatActions({
       <Button
         type="button"
         variant="secondary"
-        className="w-full"
+        className="h-10 min-h-10 w-full rounded-full"
         loading={exportingPng}
         disabled={busy && !exportingPng}
         onClick={() => void onPng()}
@@ -46,7 +46,7 @@ export function ExportFormatActions({
       <Button
         type="button"
         variant="secondary"
-        className="w-full"
+        className="h-10 min-h-10 w-full rounded-full"
         loading={exportingCmyk}
         disabled={busy && !exportingCmyk}
         onClick={() => void onCmykPdf()}

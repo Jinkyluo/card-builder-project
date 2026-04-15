@@ -102,6 +102,85 @@ function segmentLooksLikeCity(seg: string): boolean {
   return false;
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function standaloneCityTokenSet(): Set<string> {
+  const out = new Set<string>();
+  for (const k of Object.keys(CITY_ADDRESS)) out.add(k);
+  for (const p of ADDRESS_PRESETS) {
+    if (p.id === "none") continue;
+    for (const c of p.cities) {
+      if (c) out.add(c);
+    }
+  }
+  return out;
+}
+
+const STANDALONE_CITY_TOKENS = standaloneCityTokenSet();
+
+/** 整段是否仅为城市/地区名单字（与「深圳市…」整行区分） */
+function isStandaloneCityToken(seg: string): boolean {
+  const t = seg.replace(/[。．,，、;；]+$/u, "").trim();
+  if (!t || t.includes("@")) return false;
+  return STANDALONE_CITY_TOKENS.has(t);
+}
+
+/**
+ * Subotiz（模板 B）固定印刷地址，仅 `addressExtra` 可变：去掉纯城市/地区 token、
+ * 行尾「…，深圳」式缀词，以及逗号分段中的纯城市段。
+ */
+export function stripSubotizAddressExtra(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  const cities = [...STANDALONE_CITY_TOKENS].sort((a, b) => b.length - a.length);
+  const linesOut: string[] = [];
+  for (const rawLine of t.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (isStandaloneCityToken(line)) continue;
+    let row = line;
+    for (const city of cities) {
+      row = row
+        .replace(
+          new RegExp(`(?:^|[\\s,，、])${escapeRegExp(city)}[。．，、]?$`, "u"),
+          "",
+        )
+        .trim()
+        .replace(/[,，、]\s*$/u, "")
+        .trim();
+    }
+    if (row && !isStandaloneCityToken(row)) linesOut.push(row);
+  }
+  let joined = linesOut.join("\n").trim();
+  if (/[，,]/u.test(joined)) {
+    const parts = joined.split(/[，,]/u).map((x) => x.trim()).filter(Boolean);
+    const kept = parts.filter((p) => !isStandaloneCityToken(p));
+    joined = kept.join("，").trim();
+  }
+  return joined;
+}
+
+/** 完成页切换模板：更新 `templateId`，切到 Subotiz 时顺带清理 `addressExtra` */
+export function applyLandingDoneTemplateSwitch(
+  prev: CardState,
+  templateId: TemplateId,
+): CardState {
+  if (prev.templateId === templateId) return prev;
+  const next: CardState = { ...prev, templateId };
+  if (templateId === "B") {
+    next.templateFields = {
+      ...prev.templateFields,
+      B: {
+        ...prev.templateFields.B,
+        addressExtra: stripSubotizAddressExtra(prev.templateFields.B.addressExtra),
+      },
+    };
+  }
+  return next;
+}
+
 function segmentIsPhoneLike(seg: string): boolean {
   const d = normalizePhoneDigits(seg);
   return d.length >= 8 && /[\d+]/.test(seg.replace(/\s/g, ""));
@@ -188,7 +267,8 @@ export function parsePersonalPaste(
     }
     const mBase = line.match(/^(Base|地区|办公地)[：:]\s*(.+)$/i);
     if (mBase) {
-      baseText = mBase[2].trim();
+      const v = mBase[2].trim();
+      baseText = templateId === "B" ? stripSubotizAddressExtra(v) : v;
       continue;
     }
     const emailMatch = line.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
@@ -244,7 +324,7 @@ export function parsePersonalPaste(
     }
   }
 
-  if (!baseText) {
+  if (!baseText && templateId === "A") {
     for (const seg of scan) {
       if (segmentLooksLikeCity(seg)) {
         baseText = seg.trim();
@@ -286,7 +366,7 @@ export function buildCardStateFromLandingInput(options: {
       ? presetId === "none"
         ? parsed.baseText.trim()
         : ""
-      : parsed.baseText.trim();
+      : stripSubotizAddressExtra(parsed.baseText.trim());
 
   const addressPreset: AddressPresetId =
     options.templateId === "A"
@@ -328,8 +408,7 @@ export function buildCardStateFromLandingInput(options: {
         ...base.templateFields.B,
         ...(options.templateId === "B"
           ? {
-              addressExtra:
-                parsed.baseText.trim() || base.templateFields.B.addressExtra,
+              addressExtra,
             }
           : {}),
       },
