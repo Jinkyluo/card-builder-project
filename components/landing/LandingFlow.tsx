@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpIcon, DownloadIcon } from "lucide-react";
@@ -466,7 +467,7 @@ export function LandingFlow(): JSX.Element {
               <span aria-hidden="true" className={studio.heroGuideLineRight} />
               <span aria-hidden="true" className={studio.heroGuideNodeLeft} />
               <span aria-hidden="true" className={studio.heroGuideNodeRight} />
-              <a href="/#welcome" className={studio.brandLink}>
+              <Link href="/#welcome" className={studio.brandLink}>
                 <Image
                   src="/design/logo-red.svg"
                   alt="Shoplazza"
@@ -476,7 +477,7 @@ export function LandingFlow(): JSX.Element {
                   priority
                 />
                 <span className={studio.brandText}>Card Builder</span>
-              </a>
+              </Link>
               <div
                 className={cn(studio.heroCenter, styles.landingHeroCenterSpacer)}
                 aria-hidden
@@ -702,7 +703,7 @@ export function LandingFlow(): JSX.Element {
             <span aria-hidden="true" className={studio.heroGuideLineRight} />
             <span aria-hidden="true" className={studio.heroGuideNodeLeft} />
             <span aria-hidden="true" className={studio.heroGuideNodeRight} />
-            <a href="#welcome" className={studio.brandLink}>
+            <Link href="/#welcome" className={studio.brandLink}>
               <Image
                 src="/design/logo-red.svg"
                 alt="Shoplazza"
@@ -712,7 +713,7 @@ export function LandingFlow(): JSX.Element {
                 priority
               />
               <span className={studio.brandText}>Card Builder</span>
-            </a>
+            </Link>
             <div
               className={cn(studio.heroCenter, styles.landingHeroCenterSpacer)}
               aria-hidden
