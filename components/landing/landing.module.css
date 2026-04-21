@@ -28,7 +28,7 @@ main.landingFlowPageBg {
 .landingOverlap {
   position: relative;
   z-index: 0;
-  width: min(720px, calc(100% - 32px));
+  width: min(720px, calc(100% - clamp(28px, 5vw, 48px)));
   margin: 0 auto;
   overflow: visible;
 }
@@ -50,6 +50,7 @@ main.landingFlowPageBg {
   position: relative;
   width: 100%;
   height: 100%;
+  transform-origin: center bottom;
 }
 .templateCardWrap {
   position: absolute;
@@ -113,6 +114,43 @@ main.landingFlowPageBg {
   transform: scale(0.8);
 }
 
+/* 窄屏：双卡以固定 px 锚在「居中宽桌面」构图上，视口变窄会左右裁切；整体 scale + 加宽左右留白 */
+@media (max-width: 640px) {
+  .landingOverlap {
+    width: min(720px, calc(100% - clamp(36px, 7vw, 52px)));
+  }
+  .templateStage {
+    height: 220px;
+    margin-bottom: -50px;
+  }
+  .templateDeck {
+    transform: scale(0.78);
+  }
+}
+
+@media (max-width: 480px) {
+  .landingOverlap {
+    width: min(720px, calc(100% - clamp(40px, 9vw, 56px)));
+  }
+  .templateStage {
+    height: 204px;
+    margin-bottom: -46px;
+  }
+  .templateDeck {
+    transform: scale(0.64);
+  }
+}
+
+@media (max-width: 380px) {
+  .templateStage {
+    height: 192px;
+    margin-bottom: -42px;
+  }
+  .templateDeck {
+    transform: scale(0.56);
+  }
+}
+
 .modalHintRow {
   display: flex;
   align-items: flex-start;
@@ -125,7 +163,8 @@ main.landingFlowPageBg {
   z-index: 2;
   width: 100%;
   margin-top: -54px;
-  padding: 20px 22px 16px;
+  padding: clamp(16px, 3.8vw, 20px) clamp(16px, 4.5vw, 22px)
+    clamp(14px, 3.2vw, 16px);
   border-radius: 22px;
   /* 液态玻璃 / 毛玻璃（浅色页面上可读性优先） */
   background: rgba(255, 255, 255, 0.5);
