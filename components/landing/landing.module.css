@@ -527,10 +527,14 @@ main.landingFlowPageBg {
   justify-content: center;
   margin-top: 0;
 }
+/* 离屏仅供 PNG 栅格化：勿用 visibility:hidden，否则 html-to-image 会得到全白图 */
 .hiddenExport {
   position: fixed;
-  left: -12000px;
   top: 0;
+  left: -10000px;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   pointer-events: none;
-  visibility: hidden;
 }

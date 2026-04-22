@@ -61,6 +61,10 @@ import styles from "./landing.module.css";
 
 const NARROW_EXPORT_MEDIA = "(max-width: 1024px)";
 
+function historyEntryTemplateLabel(templateId: TemplateId): "Shoplazza" | "Subotiz" {
+  return templateId === "A" ? "Shoplazza" : "Subotiz";
+}
+
 function useNarrowLayoutForExport(): boolean {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
@@ -902,32 +906,49 @@ export function LandingFlow(): JSX.Element {
             <DialogTitle>历史记录</DialogTitle>
             <DialogDescription>保存在本设备，最近若干次生成。</DialogDescription>
           </DialogHeader>
-          <DialogPanel className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+          <DialogPanel className="flex max-h-80 flex-col gap-4 overflow-y-auto">
             {historyRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">暂无记录</p>
             ) : (
               historyRows.map((row) => (
                 <div
                   key={row.id}
-                  className="flex flex-col gap-2 rounded-lg border p-3"
+                  className="flex flex-row flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-lg border px-3 py-4"
                 >
-                  <div className="text-sm font-medium">{row.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleString()}
+                  <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{row.label}</span>
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                          row.state.templateId === "A"
+                            ? "bg-red-50 text-[#f30006]"
+                            : "bg-purple-50 text-purple-900",
+                        )}
+                        aria-label={`模板 ${historyEntryTemplateLabel(row.state.templateId)}`}
+                      >
+                        {historyEntryTemplateLabel(row.state.templateId)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(row.createdAt).toLocaleString()}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-2">
                     <Button
                       size="sm"
-                      variant="secondary"
+                      variant="default"
                       type="button"
+                      className="rounded-full"
                       onClick={() => applyHistoryToWelcome(row)}
                     >
-                      载入到欢迎
+                      再次导入信息
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       type="button"
+                      className="rounded-full shadow-none"
                       onClick={() => void openHistoryInStudio(row)}
                     >
                       打开编辑器
@@ -949,29 +970,49 @@ export function LandingFlow(): JSX.Element {
             <DrawerTitle>历史记录</DrawerTitle>
             <DrawerDescription>保存在本设备。</DrawerDescription>
           </DrawerHeader>
-          <DrawerPanel className="max-h-[60vh] space-y-2 overflow-y-auto px-4">
+          <DrawerPanel className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-4">
             {historyRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">暂无记录</p>
             ) : (
               historyRows.map((row) => (
-                <div key={row.id} className="rounded-lg border p-3">
-                  <div className="text-sm font-medium">{row.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleString()}
+                <div
+                  key={row.id}
+                  className="flex flex-row flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-lg border px-3 py-4"
+                >
+                  <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{row.label}</span>
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                          row.state.templateId === "A"
+                            ? "bg-red-50 text-[#f30006]"
+                            : "bg-purple-50 text-purple-900",
+                        )}
+                        aria-label={`模板 ${historyEntryTemplateLabel(row.state.templateId)}`}
+                      >
+                        {historyEntryTemplateLabel(row.state.templateId)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(row.createdAt).toLocaleString()}
+                    </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-2">
                     <Button
                       size="sm"
-                      variant="secondary"
+                      variant="default"
                       type="button"
+                      className="rounded-full"
                       onClick={() => applyHistoryToWelcome(row)}
                     >
-                      载入到欢迎
+                      再次导入信息
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       type="button"
+                      className="rounded-full shadow-none"
                       onClick={() => void openHistoryInStudio(row)}
                     >
                       打开编辑器
