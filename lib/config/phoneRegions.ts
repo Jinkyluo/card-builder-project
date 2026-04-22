@@ -28,7 +28,7 @@ export const PHONE_REGION_OPTIONS: PhoneRegionOption[] = [
     id: "CN",
     label: "中国大陆",
     dialCode: "+86",
-    placeholder: "138 0000 0000",
+    placeholder: "138 2233 6688",
     formatLocal: (digits) => formatByGroups(digits, [3, 4, 4]),
     validate: (digits) => /^1\d{10}$/.test(digits),
   },
@@ -57,14 +57,6 @@ export const PHONE_REGION_OPTIONS: PhoneRegionOption[] = [
     validate: (digits) => /^9\d{8}$/.test(digits),
   },
   {
-    id: "SG",
-    label: "新加坡",
-    dialCode: "+65",
-    placeholder: "8123 4567",
-    formatLocal: (digits) => formatByGroups(digits, [4, 4]),
-    validate: (digits) => /^[3689]\d{7}$/.test(digits),
-  },
-  {
     id: "US",
     label: "美国/加拿大",
     dialCode: "+1",
@@ -79,6 +71,14 @@ export const PHONE_REGION_OPTIONS: PhoneRegionOption[] = [
       return `(${area}) ${prefix}-${line}`;
     },
     validate: (digits) => /^\d{10}$/.test(digits),
+  },
+  {
+    id: "SG",
+    label: "新加坡",
+    dialCode: "+65",
+    placeholder: "8123 4567",
+    formatLocal: (digits) => formatByGroups(digits, [4, 4]),
+    validate: (digits) => /^[3689]\d{7}$/.test(digits),
   },
 ];
 
@@ -130,14 +130,35 @@ export function inferPhoneRegionAndLocalNumber(value: string): {
   };
 }
 
+/** 将用户输入的区号规范为「+数字」；空串返回空 */
+export function normalizeDialCodeInput(raw: string): string {
+  const t = raw.trim().replace(/\s/g, "");
+  if (!t) return "";
+  if (t.startsWith("+")) return `+${t.slice(1).replace(/\D/g, "")}`;
+  const digits = t.replace(/\D/g, "");
+  return digits ? `+${digits}` : "";
+}
+
+/** 若输入与预置区号一致则返回对应选项，否则 null */
+export function matchPhoneRegionFromDialInput(
+  dialInput: string,
+): PhoneRegionOption | null {
+  const norm = normalizeDialCodeInput(dialInput);
+  if (!norm) return null;
+  return PHONE_REGION_OPTIONS.find((o) => o.dialCode === norm) ?? null;
+}
+
 export function formatPhoneForDisplay(
   phoneRegion: string | undefined,
-  phone: string | undefined
+  phone: string | undefined,
+  dialCodeOverride?: string | undefined,
 ): string {
   const option = getPhoneRegionOption(phoneRegion);
+  const custom = normalizeDialCodeInput(dialCodeOverride ?? "");
+  const dial = custom || option.dialCode;
   const digits = normalizePhoneDigits(phone ?? "");
   const local = option.formatLocal(digits);
-  return local ? `${option.dialCode} ${local}` : option.dialCode;
+  return local ? `${dial} ${local}` : dial;
 }
 
 export function formatLocalPhoneForDisplay(

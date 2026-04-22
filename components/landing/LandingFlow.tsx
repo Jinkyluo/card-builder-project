@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpIcon, DownloadIcon } from "lucide-react";
+import { ArrowUpIcon, DownloadIcon, HelpCircleIcon, XIcon } from "lucide-react";
 import { CardFacePreview } from "@/components/CardFacePreview";
 import { QrSvgDom } from "@/components/QrSvgDom";
 import { Button } from "@/components/ui/button";
@@ -44,12 +44,17 @@ import {
   applyLandingDoneTemplateSwitch,
   buildCardStateFromLandingInput,
   landingGenerateBlockedReason,
-  stripSubotizAddressExtra,
 } from "@/lib/landing/parsePersonalPaste";
 import {
   buildExportPdfFilename,
   buildExportPngFilename,
 } from "@/lib/export/pdf/exportFilename";
+import {
+  Tooltip,
+  TooltipPopup,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import studio from "@/app/studio/page.module.css";
 import styles from "./landing.module.css";
@@ -353,20 +358,6 @@ export function LandingFlow(): JSX.Element {
     if (!doneState) return miniState(selectedTemplate);
     const id = selectedTemplate;
     const base: CardState = { ...doneState, templateId: id };
-    if (id === "B") {
-      return {
-        ...base,
-        templateFields: {
-          ...base.templateFields,
-          B: {
-            ...base.templateFields.B,
-            addressExtra: stripSubotizAddressExtra(
-              base.templateFields.B.addressExtra,
-            ),
-          },
-        },
-      };
-    }
     return base;
   }, [doneState, selectedTemplate]);
 
@@ -807,14 +798,54 @@ export function LandingFlow(): JSX.Element {
               aria-label="个人信息"
             />
             {welcomeQrModules && (
-              <div className={styles.qrCorner} aria-hidden>
+              <div className={styles.qrCorner}>
                 <QrSvgDom modules={welcomeQrModules} sizeMm={10} />
+                <button
+                  type="button"
+                  className={styles.qrCornerRemove}
+                  aria-label="删除二维码"
+                  onClick={() => {
+                    setQrPayload(null);
+                    setGenerateError(null);
+                    if (qrInputRef.current) qrInputRef.current.value = "";
+                  }}
+                >
+                  <XIcon className="size-3" />
+                </button>
               </div>
             )}
           </div>
           <div className={styles.modalHintRow}>
             <span className={styles.hintText}>
-              信息包括：中文名，英文名（选填），岗位，电话，邮箱，Base 地区
+              <TooltipProvider delay={150} closeDelay={120}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        aria-label="自动识别说明"
+                        className={styles.hintHelpButton}
+                      />
+                    }
+                  >
+                    <HelpCircleIcon
+                      aria-hidden
+                      className={styles.hintHelpIcon}
+                    />
+                  </TooltipTrigger>
+                  <TooltipPopup
+                    side="top"
+                    align="start"
+                    sideOffset={8}
+                    className="max-w-[300px]"
+                  >
+                    <div className="whitespace-normal px-2 py-2 text-left text-xs leading-relaxed text-balance">
+                      自动识别目前仅支持中文版以及国内主要办公城市地址，特殊地址、信息或全英文名片可以点击右上角「进入编辑器」进行手动输入。
+                    </div>
+                  </TooltipPopup>
+                </Tooltip>
+              </TooltipProvider>
+              信息包括：中文名，英文名(选填)，岗位，电话，邮箱，城市
             </span>
             <Button
               type="button"
@@ -822,7 +853,7 @@ export function LandingFlow(): JSX.Element {
               onClick={primaryCta}
             >
               <ArrowUpIcon className="mr-1 size-4" />
-              {qrPayload ? "生成" : "上传二维码"}
+              {qrPayload ? "生成" : "上传企微二维码"}
             </Button>
           </div>
           <input

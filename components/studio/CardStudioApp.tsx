@@ -9,13 +9,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import styles from "@/app/studio/page.module.css";
 import { CardFacePreview } from "@/components/CardFacePreview";
 import { migrateLegacyCardState } from "@/lib/card/effectiveFields";
+import { finalizeShoplazzaATemplateFields } from "@/lib/card/shoplazzaAddressSlots";
 import {
-  getPhoneRegionOption,
   inferPhoneRegionAndLocalNumber,
   normalizePhoneDigits,
   PHONE_REGION_OPTIONS,
@@ -30,7 +30,6 @@ import {
 import { loadDraft, saveDraft } from "@/lib/storage/idb";
 import { getQrModules, type QrModules } from "@/lib/qr/generate";
 import { decodeQrFromFile } from "@/lib/qr/decode";
-import { stripSubotizAddressExtra } from "@/lib/landing/parsePersonalPaste";
 import {
   buildExportPdfFilename,
   buildExportPngFilename,
@@ -134,11 +133,11 @@ function normalizeCardState(raw: unknown): CardState {
     },
     templateFields: {
       ...migrated.templateFields,
-      A: {
+      A: finalizeShoplazzaATemplateFields({
         ...a,
         company: shoplazzaCompany,
         website: shoplazzaWebsite,
-      },
+      }),
     },
   };
 }
@@ -160,7 +159,6 @@ export function CardStudioApp() {
   const backPreviewRef = useRef<HTMLDivElement | null>(null);
   const exportFrontRef = useRef<HTMLDivElement | null>(null);
   const exportBackRef = useRef<HTMLDivElement | null>(null);
-  const selectedPhoneRegion = getPhoneRegionOption(state.shared.phoneRegion);
   const isNameFieldVisible = (key: string) => state.visibility[key] !== false;
   const phoneError = validatePhoneForRegion(
     state.shared.phoneRegion,
@@ -263,9 +261,8 @@ export function CardStudioApp() {
             ...s.templateFields,
             B: {
               ...s.templateFields.B,
-              addressExtra: stripSubotizAddressExtra(
-                s.templateFields.B.addressExtra,
-              ),
+              addressPreset:
+                s.templateFields.B.addressPreset || "city-shenzhen",
             },
           },
         };
@@ -492,7 +489,6 @@ export function CardStudioApp() {
                             state={state}
                             setState={setState}
                             phoneError={phoneError}
-                            selectedPhoneRegion={selectedPhoneRegion}
                             isNameFieldVisible={isNameFieldVisible}
                           />
                         </div>
@@ -502,18 +498,6 @@ export function CardStudioApp() {
                           <div className={styles.fieldBlock}>
                             <ShoplazzaAddressPresetBlock state={state} setState={setState} />
                           </div>
-                          {state.templateFields.A.addressPreset === "none" && (
-                            <div className={styles.fieldBlock}>
-                              <SidebarFieldRow
-                                fieldKey="addressExtra"
-                                state={state}
-                                setState={setState}
-                                phoneError={phoneError}
-                                selectedPhoneRegion={selectedPhoneRegion}
-                                isNameFieldVisible={isNameFieldVisible}
-                              />
-                            </div>
-                          )}
                         </>
                       )}
                     </div>
@@ -524,7 +508,7 @@ export function CardStudioApp() {
 
             <section className={styles.surfaceCard} id="qr" aria-label="二维码">
               <div className={styles.fieldStack}>
-                <div className={styles.uploadRow}>
+                <div className={cn(styles.uploadRow, styles.qrUploadToolbar)}>
                   <input
                     ref={qrFileInputRef}
                     type="file"
@@ -534,14 +518,15 @@ export function CardStudioApp() {
                   />
                   <button
                     type="button"
-                    className={cn(styles.buttonBase, styles.secondaryButton)}
+                    className={cn(styles.buttonBase, styles.qrUploadPillButton)}
                     onClick={openQrPicker}
                   >
-                    上传二维码图片
+                    <Upload aria-hidden />
+                    上传二维码
                   </button>
                   <button
                     type="button"
-                    className={cn(styles.buttonBase, styles.linkButton)}
+                    className={cn(styles.buttonBase, styles.qrClearOutlineButton)}
                     onClick={() => {
                       setManualQr("");
                       setState((s) => ({ ...s, qr: null }));
@@ -559,25 +544,23 @@ export function CardStudioApp() {
                 )}
 
                 <div className={styles.fieldBlock}>
-                  <div className={styles.controlShell}>
-                    <input
-                      className={styles.control}
+                  <div className={cn(styles.controlShell, styles.qrManualShell)}>
+                    <textarea
+                      className={styles.qrManualTextarea}
+                      rows={5}
                       aria-label="二维码内容"
-                      placeholder="输入链接、名片地址或任意文本"
+                      placeholder="输入链接地址或任意文本"
                       value={manualQr}
                       onChange={(e) => setManualQr(e.target.value)}
                     />
+                    <button
+                      type="button"
+                      className={cn(styles.buttonBase, styles.qrApplyPillButton)}
+                      onClick={applyManualQr}
+                    >
+                      应用
+                    </button>
                   </div>
-                </div>
-
-                <div className={styles.qrActionRow}>
-                  <button
-                    type="button"
-                    className={cn(styles.buttonBase, styles.primaryButton)}
-                    onClick={applyManualQr}
-                  >
-                    应用内容
-                  </button>
                 </div>
               </div>
             </section>

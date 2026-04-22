@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import type { CardState } from "@/lib/types/card";
 import {
   BACK_LOGO_BOUNDS_MM,
@@ -34,6 +34,97 @@ function layoutPt(n: number): string {
   return `${Number(n.toFixed(4))}pt`;
 }
 
+const CSS_PX_PER_MM = 96 / 25.4;
+
+/** 字段 key → 用于 Canvas 测量的字体串（与 SSR 渲染 fontFamily 关键字一致） */
+function canvasFontFamilyForBlockFamily(
+  family: "default" | "harmony" | "pp-right" | "dm-sans" | undefined,
+): string {
+  if (family === "harmony") {
+    return '"HarmonyOS Sans SC Embedded", "HarmonyOS Sans SC", "Noto Sans SC", sans-serif';
+  }
+  if (family === "pp-right") {
+    return '"PP Right Grotesk Wide Regular", sans-serif';
+  }
+  if (family === "dm-sans") {
+    return '"DM Sans", ui-sans-serif, system-ui, sans-serif';
+  }
+  return 'system-ui, sans-serif';
+}
+
+/**
+ * 客户端用真实字体度量「公司 / 主地址 / 自定义补充」组的最大行宽，
+ * 返回令该组右缘贴齐二维码右缘的 leftMm；字体未就绪或不可测时返回 null（继续用 SSR 估算）。
+ */
+function useShoplazzaAddressGroupLeftMm(
+  layout: TemplateLayout,
+  side: "front" | "back",
+  state: CardState,
+): number | null {
+  const [leftMm, setLeftMm] = useState<number | null>(null);
+
+  useEffect(() => {
+    if ((layout.id !== "A" && layout.id !== "B") || side !== "front") {
+      setLeftMm(null);
+      return;
+    }
+    const qrPos = layout.qr.front;
+    const companyBlock = layout.front.blocks.find((b) => b.key === "company");
+    const addressBlock = layout.front.blocks.find((b) => b.key === "address");
+    const extraBlock = layout.front.blocks.find((b) => b.key === "addressExtra");
+    if (!qrPos || !companyBlock || !addressBlock || !extraBlock) {
+      setLeftMm(null);
+      return;
+    }
+    if (typeof document === "undefined") return;
+
+    let cancelled = false;
+    const compute = () => {
+      if (cancelled) return;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const measureMaxLineWidthPx = (
+        text: string,
+        fontSizePt: number,
+        family: typeof companyBlock.fontFamily,
+      ): number => {
+        if (!text) return 0;
+        const fontPx = (fontSizePt * 96) / 72;
+        ctx.font = `${fontPx}px ${canvasFontFamilyForBlockFamily(family)}`;
+        return text
+          .split("\n")
+          .reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+      };
+
+      const companyText = resolveFieldDisplayValue(state, "company");
+      const addressText = resolveFieldDisplayValue(state, "address");
+      const extraText = resolveFieldDisplayValue(state, "addressExtra");
+
+      const wPx = Math.max(
+        measureMaxLineWidthPx(companyText, companyBlock.fontSizePt, companyBlock.fontFamily),
+        measureMaxLineWidthPx(addressText, addressBlock.fontSizePt, addressBlock.fontFamily),
+        measureMaxLineWidthPx(extraText, extraBlock.fontSizePt, extraBlock.fontFamily),
+      );
+      const widthMm = wPx / CSS_PX_PER_MM;
+      const qrRightMm = qrPos.leftMm + layout.qr.sizeMm;
+      setLeftMm(qrRightMm - widthMm);
+    };
+
+    if ("fonts" in document) {
+      void document.fonts.ready.then(() => compute());
+    } else {
+      compute();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [layout, side, state]);
+
+  return leftMm;
+}
+
 type Props = {
   state: CardState;
   side: "front" | "back";
@@ -62,6 +153,7 @@ function FaceContent({
   const payload = state.qr?.payload;
 
   const subotizChrome = state.templateId === "B";
+  const groupLeftMmOverride = useShoplazzaAddressGroupLeftMm(layout, side, state);
 
   return (
     <>
@@ -138,19 +230,27 @@ function FaceContent({
         }
         const color = b.useMutedColor ? face.muted : face.text;
         const lineHeightPt = resolveBlockLineHeightPt(layout, side, b);
+        // company / address / addressExtra 的换行只来自显式 `\n`：用 `pre` 阻止软换行
+        const useHardWrap =
+          b.key === "company" || b.key === "address" || b.key === "addressExtra";
+        // 客户端字体就绪后，用真实度量覆盖 SSR 估算，让组右缘贴齐二维码右缘
+        const dynamicLeftMm =
+          groupLeftMmOverride != null && useHardWrap
+            ? groupLeftMmOverride
+            : resolveBlockLeftMm(layout, side, state, b);
         return (
           <div
             key={b.key}
             className="absolute leading-tight"
             suppressHydrationWarning
             style={{
-              left: layoutMm(resolveBlockLeftMm(layout, side, state, b)),
+              left: layoutMm(dynamicLeftMm),
               top: layoutMm(resolveBlockTopMm(layout, side, state, b)),
               fontSize: layoutPt(b.fontSizePt),
               fontWeight: b.fontWeight ?? 400,
               lineHeight:
                 lineHeightPt != null ? layoutPt(lineHeightPt) : undefined,
-              whiteSpace: "pre-wrap",
+              whiteSpace: useHardWrap ? "pre" : "pre-wrap",
               color,
               fontFamily:
                 b.fontFamily === "harmony"

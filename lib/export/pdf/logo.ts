@@ -11,6 +11,19 @@ import {
   SUBOTIZ_FRONT_LOGO_SVG,
 } from "@/lib/brand/subotiz";
 import { mmToPt } from "@/lib/layout/cardLayout";
+import type { PdfFillColor } from "@/lib/layout/templateColors";
+
+/**
+ * svg-to-pdfkit `colorCallback`：用印厂 CMYK 覆盖 SVG 内嵌 RGB，保留原 opacity。
+ * 入参 `result = [[r,g,b], opacity]`（0–255 / 0–1），返回需匹配相同 [color, opacity] 结构。
+ */
+function buildSvgColorOverride(target: PdfFillColor | null) {
+  if (target == null) return undefined;
+  return (result: unknown): [PdfFillColor, number] => {
+    const opacity = Array.isArray(result) && typeof result[1] === "number" ? result[1] : 1;
+    return [target, opacity];
+  };
+}
 
 type ParsedDataUrl = {
   mimeType: string;
@@ -51,7 +64,8 @@ function fitRect(
 
 export function drawTemplateALogo(
   doc: PDFKit.PDFDocument,
-  side: "front" | "back"
+  side: "front" | "back",
+  logoColor: PdfFillColor | null = null,
 ): void {
   const bounds = side === "front" ? FRONT_LOGO_BOUNDS_MM : BACK_LOGO_BOUNDS_MM;
   const svg = side === "front" ? SHOPLAZZA_FRONT_LOGO_SVG : SHOPLAZZA_BACK_LOGO_SVG;
@@ -60,12 +74,14 @@ export function drawTemplateALogo(
     width: mmToPt(bounds.width),
     height: mmToPt(bounds.height),
     preserveAspectRatio: "xMidYMid meet",
+    colorCallback: buildSvgColorOverride(logoColor),
   });
 }
 
 export function drawSubotizLogo(
   doc: PDFKit.PDFDocument,
-  side: "front" | "back"
+  side: "front" | "back",
+  logoColor: PdfFillColor | null = null,
 ): void {
   const bounds = side === "front" ? FRONT_LOGO_BOUNDS_MM : BACK_LOGO_BOUNDS_MM;
   const svg = side === "front" ? SUBOTIZ_FRONT_LOGO_SVG : SUBOTIZ_BACK_LOGO_SVG;
@@ -74,6 +90,7 @@ export function drawSubotizLogo(
     width: mmToPt(bounds.width),
     height: mmToPt(bounds.height),
     preserveAspectRatio: "xMidYMid meet",
+    colorCallback: buildSvgColorOverride(logoColor),
   });
 }
 

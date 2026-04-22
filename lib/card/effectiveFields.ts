@@ -1,7 +1,11 @@
 import {
   buildAddressText,
+  CITY_ADDRESS,
+  DEFAULT_ADDRESS_PRESET,
   inferAddressPresetId,
+  normalizeAddressPresetId,
 } from "@/lib/config/addressPresets";
+import { finalizeShoplazzaATemplateFields } from "@/lib/card/shoplazzaAddressSlots";
 import { normalizePhoneDigits } from "@/lib/config/phoneRegions";
 import {
   defaultCardState,
@@ -40,6 +44,7 @@ export function getEffectiveFields(state: CardState): Record<string, string> {
     englishName: s.englishName,
     title: s.title,
     phoneRegion: s.phoneRegion,
+    phoneDialCodeCustom: s.phoneDialCodeCustom ?? "",
     phone: s.phone,
     email,
     contactNote: s.contactNote,
@@ -61,13 +66,17 @@ export function getEffectiveFields(state: CardState): Record<string, string> {
   }
 
   const b = state.templateFields.B;
+  const presetText =
+    b.addressPreset === "city-shenzhen"
+      ? CITY_ADDRESS["深圳"]
+      : (b.addressCustomText ?? "").trim();
   return {
     ...common,
-    company: b.company,
+    company: presetText || SUBOTIZ_DEFAULT_COMPANY,
     website: b.website,
-    addressPreset: "",
+    addressPreset: b.addressPreset ?? "",
     address: "",
-    addressExtra: b.addressExtra,
+    addressExtra: "",
   };
 }
 
@@ -89,12 +98,47 @@ function isLegacyFlatFields(
   );
 }
 
+/** 将 v2 草稿里 B 模板的旧 `addressExtra` 形态归一为新 `addressPreset/addressCustomText` 形态 */
+function normalizeSubotizFieldsShape(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null) return raw;
+  const r = raw as { templateFields?: { B?: Record<string, unknown> } };
+  const b = r.templateFields?.B;
+  if (!b) return raw;
+  const hasNewShape =
+    Object.prototype.hasOwnProperty.call(b, "addressPreset") &&
+    Object.prototype.hasOwnProperty.call(b, "addressCustomText");
+  if (hasNewShape) {
+    // 仍可能含残留 addressExtra 字段，但下游不读取，不强制清理
+    return raw;
+  }
+  const legacyCompany = String(b.company ?? "").trim();
+  const shenzhenText = CITY_ADDRESS["深圳"];
+  const isShenzhenLike =
+    !legacyCompany ||
+    legacyCompany === shenzhenText ||
+    legacyCompany === SUBOTIZ_DEFAULT_COMPANY;
+  const next = {
+    ...(raw as object),
+    templateFields: {
+      ...(r.templateFields as object),
+      B: {
+        company: SUBOTIZ_DEFAULT_COMPANY,
+        website: String(b.website ?? SUBOTIZ_DEFAULT_WEBSITE),
+        addressPreset: isShenzhenLike ? DEFAULT_ADDRESS_PRESET : "none",
+        addressCustomText: isShenzhenLike ? "" : legacyCompany,
+        locks: { website: true },
+      },
+    },
+  };
+  return next;
+}
+
 /**
  * 将旧版单层 `fields` 草稿转为 schemaVersion 2。
  */
 export function migrateLegacyCardState(raw: unknown): CardState {
   if (!isLegacyFlatFields(raw)) {
-    return raw as CardState;
+    return normalizeSubotizFieldsShape(raw) as CardState;
   }
 
   const base = defaultCardState();
@@ -121,21 +165,24 @@ export function migrateLegacyCardState(raw: unknown): CardState {
   };
 
   if (tid === "A") {
-    const addressPreset =
-      f.addressPreset || inferAddressPresetId(f.address ?? "");
+    const addressPreset = normalizeAddressPresetId(
+      f.addressPreset || inferAddressPresetId(f.address ?? ""),
+    );
+    const rawA = {
+      company: f.company?.trim() || SHOPLAZZA_DEFAULT_COMPANY,
+      website: f.website?.trim() || SHOPLAZZA_DEFAULT_WEBSITE,
+      addressPreset,
+      address: (f.address ?? "").trim() || buildAddressText(addressPreset),
+      addressExtra: f.addressExtra ?? "",
+      addressSlots: [],
+      locks: { company: locks.company },
+    };
     return {
       schemaVersion: SCHEMA_VERSION,
       templateId: "A",
       shared,
       templateFields: {
-        A: {
-          company: f.company?.trim() || SHOPLAZZA_DEFAULT_COMPANY,
-          website: f.website?.trim() || SHOPLAZZA_DEFAULT_WEBSITE,
-          addressPreset,
-          address: buildAddressText(addressPreset),
-          addressExtra: f.addressExtra ?? "",
-          locks: { company: locks.company },
-        },
+        A: finalizeShoplazzaATemplateFields(rawA),
         B: base.templateFields.B,
       },
       visibility: raw.visibility ?? base.visibility,
@@ -144,6 +191,12 @@ export function migrateLegacyCardState(raw: unknown): CardState {
     };
   }
 
+  const legacyCompanyB = (f.company ?? "").trim();
+  const shenzhenText = CITY_ADDRESS["深圳"];
+  const isShenzhenLike =
+    !legacyCompanyB ||
+    legacyCompanyB === shenzhenText ||
+    legacyCompanyB === SUBOTIZ_DEFAULT_COMPANY;
   return {
     schemaVersion: SCHEMA_VERSION,
     templateId: "B",
@@ -151,10 +204,11 @@ export function migrateLegacyCardState(raw: unknown): CardState {
     templateFields: {
       A: base.templateFields.A,
       B: {
-        company: f.company?.trim() || SUBOTIZ_DEFAULT_COMPANY,
+        company: SUBOTIZ_DEFAULT_COMPANY,
         website: f.website?.trim() || SUBOTIZ_DEFAULT_WEBSITE,
-        addressExtra: f.addressExtra ?? "",
-        locks: { company: locks.company, website: locks.website },
+        addressPreset: isShenzhenLike ? DEFAULT_ADDRESS_PRESET : "none",
+        addressCustomText: isShenzhenLike ? "" : legacyCompanyB,
+        locks: { website: locks.website },
       },
     },
     visibility: raw.visibility ?? base.visibility,

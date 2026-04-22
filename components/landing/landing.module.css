@@ -122,6 +122,7 @@ main.landingFlowPageBg {
   .templateStage {
     height: 220px;
     margin-bottom: -50px;
+    transform: translateY(-12px);
   }
   .templateDeck {
     transform: scale(0.78);
@@ -221,12 +222,90 @@ main.landingFlowPageBg {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   color: #0f172a;
 }
+.qrCornerRemove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+  line-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+}
+.qrCorner:hover .qrCornerRemove,
+.qrCorner:focus-within .qrCornerRemove {
+  opacity: 1;
+  visibility: visible;
+}
+.qrCornerRemove:hover {
+  background: #f1f5f9;
+}
+.qrCornerRemove:focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.35);
+  outline-offset: 2px;
+}
 .hintText {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 0;
   font-size: 0.78rem;
   line-height: 1.45;
   color: #475569;
+}
+.hintLink {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.hintLink:focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.35);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.hintHelpButton {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: opacity 120ms ease;
+}
+.hintHelpButton:hover,
+.hintHelpButton[data-popup-open] {
+  opacity: 0.75;
+}
+.hintHelpButton:focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.35);
+  outline-offset: 2px;
+}
+.hintHelpIcon {
+  width: 14px;
+  height: 14px;
 }
 .modalHintRow .hintText {
   flex: 1;

@@ -18,12 +18,14 @@ const TEMPLATE_A_CMYK = {
     accentColor: [0, 100, 100, 0] as Cmyk,
     text: [0, 0, 0, 100] as Cmyk,
     muted: [0, 0, 0, 100] as Cmyk,
+    logo: [0, 100, 100, 0] as Cmyk,
   },
   back: {
     accentColor: [0, 0, 0, 0] as Cmyk,
     bg: [0, 100, 100, 0] as Cmyk,
     text: [0, 0, 0, 0] as Cmyk,
     muted: [0, 0, 0, 0] as Cmyk,
+    logo: [0, 0, 0, 0] as Cmyk,
   },
 } as const;
 
@@ -36,11 +38,13 @@ const TEMPLATE_B_CMYK = {
     bg: [11, 8, 0, 0] as Cmyk,
     text: [78, 90, 0, 0] as Cmyk,
     muted: [78, 90, 0, 0] as Cmyk,
+    logo: [78, 90, 0, 0] as Cmyk,
   },
   back: {
     bg: [78, 90, 0, 0] as Cmyk,
     text: [0, 0, 0, 0] as Cmyk,
     muted: [0, 0, 0, 0] as Cmyk,
+    logo: [11, 8, 0, 0] as Cmyk,
   },
 } as const;
 
@@ -92,6 +96,21 @@ export function getFacePdfColors(
     text: hexToCmyk100(face.text),
     muted: hexToCmyk100(face.muted),
   };
+}
+
+/**
+ * 印刷 PDF 中 Logo 的填色（覆盖 SVG 内嵌 RGB），CMYK 为印厂指定四色；
+ * RGB 模式下保留 SVG 原色。
+ */
+export function getFaceLogoPdfColor(
+  layout: TemplateLayout,
+  side: "front" | "back",
+  colorSpace: PdfColorSpace,
+): PdfFillColor | null {
+  if (colorSpace === "rgb") return null;
+  if (layout.id === "A") return TEMPLATE_A_CMYK[side].logo;
+  if (layout.id === "B") return TEMPLATE_B_CMYK[side].logo;
+  return null;
 }
 
 /** 二维码模块色：模板 A 印厂黑；模板 B 与正面品牌紫一致（印刷用印厂 CMYK） */

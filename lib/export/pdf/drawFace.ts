@@ -7,6 +7,7 @@ import {
   type TemplateLayout,
 } from "@/lib/layout/cardLayout";
 import {
+  getFaceLogoPdfColor,
   getFacePdfColors,
   type PdfFillColor,
   type PdfColorSpace,
@@ -35,8 +36,10 @@ function measureBlockWidthPt(
   if (!value) return 0;
 
   doc.font(resolvePdfFontFamily(block)).fontSize(block.fontSizePt);
+  const capPt = block.maxWidthMm != null ? mmToPt(block.maxWidthMm) : Infinity;
   return value.split("\n").reduce((maxWidth, line) => {
-    return Math.max(maxWidth, doc.widthOfString(line));
+    const w = doc.widthOfString(line);
+    return Math.max(maxWidth, Math.min(w, capPt));
   }, 0);
 }
 
@@ -132,10 +135,11 @@ export function drawFace(
   doc.fillColor(pdfColors.bg).rect(0, 0, doc.page.width, doc.page.height).fill();
   doc.restore();
 
+  const logoColor = getFaceLogoPdfColor(layout, side, options.colorSpace);
   if (layout.id === "A") {
-    drawTemplateALogo(doc, side);
+    drawTemplateALogo(doc, side, logoColor);
   } else if (layout.id === "B") {
-    drawSubotizLogo(doc, side);
+    drawSubotizLogo(doc, side, logoColor);
   }
 
   for (const block of face.blocks) {

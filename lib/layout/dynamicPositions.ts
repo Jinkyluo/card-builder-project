@@ -27,6 +27,16 @@ function templateAFrontAddressExtraUpwardShiftMm(state: CardState): number {
   return lineCount * COMPANY_ADDRESS_LINE_PITCH_MM;
 }
 
+/** 模板 B（Subotiz）正面 company 文本行数：派生自 `effectiveFields.company`（深圳印刷地址或自定义） */
+function templateBFrontCompanyLineCount(state: CardState): number {
+  return Math.max(
+    1,
+    (getEffectiveFields(state).company ?? "")
+      .split("\n")
+      .filter((line) => line.trim().length > 0).length,
+  );
+}
+
 function estimateTextWidthPx(text: string, fontSizePt: number): number {
   const fontSizePx = (fontSizePt * 96) / 72;
   return text
@@ -41,10 +51,16 @@ function estimateTextWidthPx(text: string, fontSizePt: number): number {
 
 /**
  * 宽度估算须与 SSR 一致，否则动态 `left` 等在客户端用 canvas 测量会与服务器 HTML 不一致，触发水合警告。
+ * 带 `maxWidthMm` 的块（模板 A 主地址）与预览/PDF 一致：参与「公司+地址」组宽的估算不超过该上限。
  */
 function measureTextWidthPx(block: CardFieldBlock, text: string): number {
   if (!text) return 0;
-  return estimateTextWidthPx(text, block.fontSizePt);
+  const raw = estimateTextWidthPx(text, block.fontSizePt);
+  if (block.maxWidthMm != null) {
+    const capPx = block.maxWidthMm * CSS_PX_PER_MM;
+    return Math.min(raw, capPx);
+  }
+  return raw;
 }
 
 export function resolveBlockLeftMm(
@@ -110,6 +126,17 @@ export function resolveBlockTopMm(
   state: CardState,
   block: CardFieldBlock
 ): number {
+  // Subotiz（B）正面 company 块复用 Shoplazza A 的「地址组底部对齐」规则：
+  // 最后一行落在 A 的 address.topMm 基线（=47.02mm，与 A 主地址底部一致），
+  // 多行从该基线向上生长，单行位置与 A 单行主地址等高
+  if (layout.id === "B" && side === "front" && block.key === "company") {
+    const addressBlock = layout.front.blocks.find((b) => b.key === "address");
+    if (addressBlock) {
+      const lineCount = templateBFrontCompanyLineCount(state);
+      return addressBlock.topMm - (lineCount - 1) * COMPANY_ADDRESS_LINE_PITCH_MM;
+    }
+  }
+
   if (isShoplazzaLayout(layout) && side === "front") {
     const addressBlock = layout.front.blocks.find((b) => b.key === "address");
     const addressExtraBlock = layout.front.blocks.find(

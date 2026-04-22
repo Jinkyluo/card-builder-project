@@ -1,19 +1,31 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
-import { EyeIcon, EyeOffIcon, LockIcon, LockOpenIcon } from "lucide-react";
+import { Fragment, type Dispatch, type SetStateAction } from "react";
+import { EyeIcon, EyeOffIcon, LockIcon, LockOpenIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import styles from "@/app/page.module.css";
 import {
   ADDRESS_PRESETS,
-  buildAddressText,
+  normalizeAddressPresetId,
+  type AddressPresetId,
 } from "@/lib/config/addressPresets";
+import { finalizeShoplazzaATemplateFields } from "@/lib/card/shoplazzaAddressSlots";
 import {
+  DEFAULT_PHONE_REGION,
   formatLocalPhoneForDisplay,
   getPhoneRegionOption,
+  matchPhoneRegionFromDialInput,
+  normalizeDialCodeInput,
   normalizePhoneDigits,
   PHONE_REGION_OPTIONS,
 } from "@/lib/config/phoneRegions";
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+} from "@/components/ui/combobox";
 import {
   Select,
   SelectItem,
@@ -28,11 +40,10 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { parseEmailLocal } from "@/lib/card/effectiveFields";
-import type { CardState } from "@/lib/types/card";
+import type { CardState, ShoplazzaAddressSlot } from "@/lib/types/card";
 import {
   DEFAULT_FIELD_VALUES,
   emailSuffixForTemplate,
-  SUBOTIZ_DEFAULT_COMPANY,
   SUBOTIZ_DEFAULT_WEBSITE,
 } from "@/lib/types/card";
 import { labelForField } from "@/lib/i18n/fieldLabels";
@@ -42,21 +53,19 @@ const WEBSITE_ITEMS = WEBSITE_OPTIONS.map((option) => ({
   label: option,
   value: option,
 }));
-const PHONE_REGION_ITEMS = PHONE_REGION_OPTIONS.map((option) => ({
-  label: `${option.dialCode} ${option.label}`,
-  value: option.id,
-}));
-const ADDRESS_PRESET_ITEMS = ADDRESS_PRESETS.map((preset) => ({
-  label: preset.label,
-  value: preset.id,
-}));
+
+const PHONE_COMBO_ITEM_IDS = PHONE_REGION_OPTIONS.map((option) => option.id);
+
+/** 不在下拉中展示；用于手输区号时避免 Base UI 在弹层关闭把 `value=null` 同步成空串并冲掉输入 */
+const PHONE_COMBO_CUSTOM_VALUE = "__phone_dial_custom__";
+
+const PHONE_COMBO_ROOT_ITEMS = [PHONE_COMBO_CUSTOM_VALUE, ...PHONE_COMBO_ITEM_IDS];
 
 type Props = {
   fieldKey: string;
   state: CardState;
   setState: Dispatch<SetStateAction<CardState>>;
   phoneError: string | null;
-  selectedPhoneRegion: ReturnType<typeof getPhoneRegionOption>;
   isNameFieldVisible: (key: string) => boolean;
 };
 
@@ -65,51 +74,132 @@ export function SidebarFieldRow({
   state,
   setState,
   phoneError,
-  selectedPhoneRegion,
   isNameFieldVisible,
 }: Props) {
   if (key === "phone") {
+    const regionId = state.shared.phoneRegion ?? DEFAULT_PHONE_REGION;
+    const customDialRaw = state.shared.phoneDialCodeCustom ?? "";
+    const trimCustom = customDialRaw.trim();
+    const presetDial = getPhoneRegionOption(regionId).dialCode;
+    const comboboxValue = trimCustom ? PHONE_COMBO_CUSTOM_VALUE : regionId;
+    const dialInputValue = trimCustom ? customDialRaw : presetDial;
+
     return (
       <>
         <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
         <div className={styles.phoneRow}>
-          <Select
-            items={PHONE_REGION_ITEMS}
-            value={state.shared.phoneRegion ?? ""}
-            onValueChange={(phoneRegion) =>
-              setState((s) => ({
-                ...s,
-                shared: {
-                  ...s.shared,
-                  phoneRegion:
-                    phoneRegion ?? s.shared.phoneRegion ?? selectedPhoneRegion.id,
-                },
-              }))
-            }
-          >
-            <SelectTrigger
-              aria-label="选择电话号码地区"
-              className={cn(styles.selectTrigger, styles.phoneCodeTrigger)}
+          <div className={styles.phoneCodeTrigger}>
+            <Combobox<string>
+              autoComplete="off"
+              filter={null}
+              filteredItems={PHONE_COMBO_ITEM_IDS}
+              items={PHONE_COMBO_ROOT_ITEMS}
+              itemToStringLabel={(id) =>
+                id === PHONE_COMBO_CUSTOM_VALUE
+                  ? customDialRaw
+                  : getPhoneRegionOption(id).dialCode
+              }
+              inputValue={dialInputValue}
+              onInputValueChange={(newInput) =>
+                setState((s) => {
+                  const byDial = PHONE_REGION_OPTIONS.find((o) => o.dialCode === newInput);
+                  if (byDial) {
+                    return {
+                      ...s,
+                      shared: {
+                        ...s.shared,
+                        phoneRegion: byDial.id,
+                        phoneDialCodeCustom: "",
+                      },
+                    };
+                  }
+                  const rid = s.shared.phoneRegion ?? DEFAULT_PHONE_REGION;
+                  const preset = getPhoneRegionOption(rid).dialCode;
+                  if (newInput === preset) {
+                    return { ...s, shared: { ...s.shared, phoneDialCodeCustom: "" } };
+                  }
+                  return {
+                    ...s,
+                    shared: { ...s.shared, phoneDialCodeCustom: newInput },
+                  };
+                })
+              }
+              value={comboboxValue}
+              onValueChange={(nextRegion) => {
+                if (typeof nextRegion !== "string") return;
+                if (nextRegion === PHONE_COMBO_CUSTOM_VALUE) return;
+                setState((s) => ({
+                  ...s,
+                  shared: {
+                    ...s.shared,
+                    phoneRegion: nextRegion,
+                    phoneDialCodeCustom: "",
+                  },
+                }));
+              }}
             >
-              <SelectValue className={styles.selectValue}>
-                {(value) =>
-                  getPhoneRegionOption(String(value ?? state.shared.phoneRegion))
-                    .dialCode
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectPopup className={styles.selectPopupList}>
-              {PHONE_REGION_OPTIONS.map((option) => (
-                <SelectItem
-                  key={option.id}
-                  value={option.id}
-                  className={styles.selectPopupItem}
-                >
-                  {option.dialCode} {option.label}
-                </SelectItem>
-              ))}
-            </SelectPopup>
-          </Select>
+              <ComboboxInput
+                aria-label="电话国际区号"
+                placeholder="选择或输入区号"
+                showClear={false}
+                onBlur={() => {
+                  setState((s) => {
+                    const raw = (s.shared.phoneDialCodeCustom ?? "").trim();
+                    if (!raw) {
+                      return { ...s, shared: { ...s.shared, phoneDialCodeCustom: "" } };
+                    }
+                    const match = matchPhoneRegionFromDialInput(raw);
+                    if (match) {
+                      return {
+                        ...s,
+                        shared: {
+                          ...s.shared,
+                          phoneRegion: match.id,
+                          phoneDialCodeCustom: "",
+                        },
+                      };
+                    }
+                    const norm = normalizeDialCodeInput(raw);
+                    return {
+                      ...s,
+                      shared: {
+                        ...s.shared,
+                        phoneDialCodeCustom: norm || "",
+                      },
+                    };
+                  });
+                }}
+              />
+              <ComboboxPopup align="start" sideOffset={4}>
+                <ComboboxList className={styles.selectPopupList}>
+                  {(rid: string) => {
+                    if (rid === PHONE_COMBO_CUSTOM_VALUE) {
+                      return (
+                        <ComboboxItem
+                          key={rid}
+                          aria-hidden
+                          className="sr-only h-0 min-h-0 overflow-hidden p-0 opacity-0"
+                          value={rid}
+                        >
+                          {'\u00a0'}
+                        </ComboboxItem>
+                      );
+                    }
+                    const option = getPhoneRegionOption(rid);
+                    return (
+                      <ComboboxItem
+                        key={rid}
+                        className={styles.selectPopupItem}
+                        value={rid}
+                      >
+                        {option.dialCode} {option.label}
+                      </ComboboxItem>
+                    );
+                  }}
+                </ComboboxList>
+              </ComboboxPopup>
+            </Combobox>
+          </div>
           <div className={styles.controlShell}>
             <input
               className={styles.control}
@@ -261,15 +351,12 @@ export function SidebarFieldRow({
   }
 
   if (key === "company") {
-    const addrLabel = state.templateId === "B" ? "地址" : "公司";
-    const locks =
-      state.templateId === "A"
-        ? state.templateFields.A.locks
-        : state.templateFields.B.locks;
-    const companyValue =
-      state.templateId === "A"
-        ? state.templateFields.A.company
-        : state.templateFields.B.company;
+    if (state.templateId === "B") {
+      return <SubotizAddressPresetBlock state={state} setState={setState} />;
+    }
+
+    const locks = state.templateFields.A.locks;
+    const companyValue = state.templateFields.A.company;
 
     return (
       <>
@@ -278,69 +365,41 @@ export function SidebarFieldRow({
           <InputGroupInput
             className={styles.inputGroupInput}
             placeholder={
-              state.templateId === "B"
-                ? SUBOTIZ_DEFAULT_COMPANY
-                : (DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? "")
+              DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? ""
             }
             value={companyValue ?? ""}
             disabled={locks.company !== false}
             onChange={(ev) => {
               const v = ev.target.value;
-              setState((s) =>
-                s.templateId === "A"
-                  ? {
-                      ...s,
-                      templateFields: {
-                        ...s.templateFields,
-                        A: { ...s.templateFields.A, company: v },
-                      },
-                    }
-                  : {
-                      ...s,
-                      templateFields: {
-                        ...s.templateFields,
-                        B: { ...s.templateFields.B, company: v },
-                      },
-                    }
-              );
+              setState((s) => ({
+                ...s,
+                templateFields: {
+                  ...s.templateFields,
+                  A: { ...s.templateFields.A, company: v },
+                },
+              }));
             }}
           />
           <InputGroupAddon align="inline-end" className={styles.inputGroupActionAddon}>
             <button
               type="button"
               className={styles.inputGroupActionButton}
-              aria-label={`${locks.company !== false ? "解锁" : "锁定"}${addrLabel}编辑`}
+              aria-label={`${locks.company !== false ? "解锁" : "锁定"}公司编辑`}
               aria-pressed={locks.company === false}
               onClick={() =>
-                setState((s) =>
-                  s.templateId === "A"
-                    ? {
-                        ...s,
-                        templateFields: {
-                          ...s.templateFields,
-                          A: {
-                            ...s.templateFields.A,
-                            locks: {
-                              ...s.templateFields.A.locks,
-                              company: s.templateFields.A.locks.company === false,
-                            },
-                          },
-                        },
-                      }
-                    : {
-                        ...s,
-                        templateFields: {
-                          ...s.templateFields,
-                          B: {
-                            ...s.templateFields.B,
-                            locks: {
-                              ...s.templateFields.B.locks,
-                              company: s.templateFields.B.locks.company === false,
-                            },
-                          },
-                        },
-                      }
-                )
+                setState((s) => ({
+                  ...s,
+                  templateFields: {
+                    ...s.templateFields,
+                    A: {
+                      ...s.templateFields.A,
+                      locks: {
+                        ...s.templateFields.A.locks,
+                        company: s.templateFields.A.locks.company === false,
+                      },
+                    },
+                  },
+                }))
               }
             >
               {locks.company !== false ? <LockIcon /> : <LockOpenIcon />}
@@ -352,26 +411,7 @@ export function SidebarFieldRow({
   }
 
   if (key === "addressExtra") {
-    return (
-      <>
-        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
-        <textarea
-          className={styles.textareaControl}
-          rows={2}
-          placeholder="选填"
-          value={state.templateFields.A.addressExtra ?? ""}
-          onChange={(ev) =>
-            setState((s) => ({
-              ...s,
-              templateFields: {
-                ...s.templateFields,
-                A: { ...s.templateFields.A, addressExtra: ev.target.value },
-              },
-            }))
-          }
-        />
-      </>
-    );
+    return null;
   }
 
   if (key === "name" || key === "englishName") {
@@ -438,6 +478,14 @@ export function SidebarFieldRow({
   );
 }
 
+function nextAvailableSlotPreset(usedNonNone: Set<AddressPresetId>): AddressPresetId {
+  for (const p of ADDRESS_PRESETS) {
+    if (p.id === "none") continue;
+    if (!usedNonNone.has(p.id)) return p.id;
+  }
+  return "none";
+}
+
 export function ShoplazzaAddressPresetBlock({
   state,
   setState,
@@ -445,45 +493,225 @@ export function ShoplazzaAddressPresetBlock({
   state: CardState;
   setState: Dispatch<SetStateAction<CardState>>;
 }) {
+  const slots = state.templateFields.A.addressSlots ?? [];
+
+  const applySlots = (next: ShoplazzaAddressSlot[]) => {
+    setState((s) => ({
+      ...s,
+      templateFields: {
+        ...s.templateFields,
+        A: finalizeShoplazzaATemplateFields({
+          ...s.templateFields.A,
+          addressSlots: next,
+        }),
+      },
+    }));
+  };
+
   return (
-    <>
-      <span className={styles.fieldLabel}>{labelForField("addressPreset")}</span>
-      <Select
-        aria-label="选择地址地区"
-        items={ADDRESS_PRESET_ITEMS}
-        value={state.templateFields.A.addressPreset ?? ""}
-        onValueChange={(nextAddressPreset) => {
-          const addressPreset =
-            nextAddressPreset ?? state.templateFields.A.addressPreset ?? "";
-          setState((s) => ({
-            ...s,
-            templateFields: {
-              ...s.templateFields,
-              A: {
-                ...s.templateFields.A,
-                addressPreset,
-                address: buildAddressText(addressPreset),
-                ...(addressPreset !== "none" ? { addressExtra: "" } : {}),
-              },
-            },
-          }));
-        }}
+    <div className={styles.addressModule}>
+      <div className={styles.addressSlotsHeaderBar}>
+        <span className={styles.fieldLabel}>{labelForField("addressPreset")}</span>
+        {slots.length < 3 && (
+          <button
+            type="button"
+            className={cn(styles.buttonBase, styles.addressAddPillButton)}
+            onClick={() => {
+              const used = new Set<AddressPresetId>();
+              for (const s of slots) {
+                const pid = normalizeAddressPresetId(s.preset);
+                if (pid !== "none") used.add(pid);
+              }
+              const preset = nextAvailableSlotPreset(used);
+              applySlots([...slots, { preset, customText: "" }]);
+            }}
+          >
+            增加地址+
+          </button>
+        )}
+      </div>
+      <div
+        className={cn(
+          styles.addressSlotsGrid,
+          slots.length <= 1 && styles.addressSlotsGridSingle,
+        )}
       >
-        <SelectTrigger className={styles.selectTrigger}>
-          <SelectValue className={styles.selectValue} />
-        </SelectTrigger>
-        <SelectPopup className={styles.selectPopupList}>
-          {ADDRESS_PRESETS.map((preset) => (
-            <SelectItem
-              key={preset.id}
-              value={preset.id}
-              className={styles.selectPopupItem}
-            >
-              {preset.label}
-            </SelectItem>
-          ))}
-        </SelectPopup>
-      </Select>
-    </>
+        {slots.map((slot, index) => {
+        const current = normalizeAddressPresetId(slot.preset);
+        const usedElsewhere = new Set<AddressPresetId>();
+        slots.forEach((s, j) => {
+          if (j === index) return;
+          const p = normalizeAddressPresetId(s.preset);
+          if (p !== "none") usedElsewhere.add(p);
+        });
+        const items = ADDRESS_PRESETS.filter((p) => {
+          if (p.id === "none") return true;
+          if (p.id === current) return true;
+          return !usedElsewhere.has(p.id);
+        }).map((p) => ({ label: p.label, value: p.id }));
+
+        return (
+          <Fragment key={index}>
+            <div className={styles.addressSlotMainCell}>
+              <Select
+                aria-label={`地址地区 ${index + 1}`}
+                items={items}
+                value={current}
+                onValueChange={(next) => {
+                  const preset = normalizeAddressPresetId(
+                    next ?? slot.preset ?? "",
+                  );
+                  const nextSlots = slots.map((s, j) =>
+                    j === index
+                      ? {
+                          ...s,
+                          preset,
+                          customText: preset === "none" ? s.customText : "",
+                        }
+                      : s,
+                  );
+                  applySlots(nextSlots);
+                }}
+              >
+                <SelectTrigger className={styles.selectTrigger}>
+                  <SelectValue className={styles.selectValue} />
+                </SelectTrigger>
+                <SelectPopup className={styles.selectPopupList}>
+                  {ADDRESS_PRESETS.filter((p) => items.some((i) => i.value === p.id)).map(
+                    (preset) => (
+                      <SelectItem
+                        key={preset.id}
+                        value={preset.id}
+                        className={styles.selectPopupItem}
+                      >
+                        {preset.label}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectPopup>
+              </Select>
+              {current === "none" && (
+                <textarea
+                  className={styles.textareaControl}
+                  rows={2}
+                  placeholder="请输入地址，长地址可以手动换行（Shift + 回车）"
+                  value={slot.customText ?? ""}
+                  onChange={(ev) => {
+                    const v = ev.target.value;
+                    applySlots(
+                      slots.map((s, j) => (j === index ? { ...s, customText: v } : s)),
+                    );
+                  }}
+                />
+              )}
+            </div>
+            {slots.length > 1 ? (
+              <div className={styles.addressSlotTrashCell}>
+                <button
+                  type="button"
+                  className={cn(styles.buttonBase, styles.addressSlotRemove)}
+                  aria-label={`删除地址 ${index + 1}`}
+                  onClick={() => {
+                    applySlots(slots.filter((_, j) => j !== index));
+                  }}
+                >
+                  <Trash2 size={16} aria-hidden />
+                </button>
+              </div>
+            ) : null}
+          </Fragment>
+        );
+      })}
+      </div>
+    </div>
+  );
+}
+
+/** Subotiz（B）模板地址：单槽，仅「深圳 / 自定义」两个选项；不支持增减地址 */
+export function SubotizAddressPresetBlock({
+  state,
+  setState,
+}: {
+  state: CardState;
+  setState: Dispatch<SetStateAction<CardState>>;
+}) {
+  const presetRaw = state.templateFields.B.addressPreset ?? "city-shenzhen";
+  const current: AddressPresetId =
+    presetRaw === "none" ? "none" : "city-shenzhen";
+  const customText = state.templateFields.B.addressCustomText ?? "";
+
+  const items: { label: string; value: AddressPresetId }[] = [
+    { label: "深圳", value: "city-shenzhen" },
+    { label: "自定义", value: "none" },
+  ];
+
+  const setPreset = (next: AddressPresetId) => {
+    setState((s) => ({
+      ...s,
+      templateFields: {
+        ...s.templateFields,
+        B: {
+          ...s.templateFields.B,
+          addressPreset: next,
+          addressCustomText:
+            next === "none" ? (s.templateFields.B.addressCustomText ?? "") : "",
+        },
+      },
+    }));
+  };
+
+  const setCustomText = (v: string) => {
+    setState((s) => ({
+      ...s,
+      templateFields: {
+        ...s.templateFields,
+        B: { ...s.templateFields.B, addressCustomText: v },
+      },
+    }));
+  };
+
+  return (
+    <div className={styles.addressModule}>
+      <div className={styles.addressSlotsHeaderBar}>
+        <span className={styles.fieldLabel}>{labelForField("company", "B")}</span>
+      </div>
+      <div className={cn(styles.addressSlotsGrid, styles.addressSlotsGridSingle)}>
+        <div className={styles.addressSlotMainCell}>
+          <Select
+            aria-label="Subotiz 地址"
+            items={items}
+            value={current}
+            onValueChange={(next) => {
+              const v = next === "none" ? "none" : "city-shenzhen";
+              setPreset(v as AddressPresetId);
+            }}
+          >
+            <SelectTrigger className={styles.selectTrigger}>
+              <SelectValue className={styles.selectValue} />
+            </SelectTrigger>
+            <SelectPopup className={styles.selectPopupList}>
+              {items.map((item) => (
+                <SelectItem
+                  key={item.value}
+                  value={item.value}
+                  className={styles.selectPopupItem}
+                >
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+          {current === "none" && (
+            <textarea
+              className={styles.textareaControl}
+              rows={2}
+              placeholder="请输入地址，长地址可以手动换行（Shift + 回车）"
+              value={customText}
+              onChange={(ev) => setCustomText(ev.target.value)}
+            />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

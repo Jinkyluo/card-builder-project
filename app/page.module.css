@@ -555,6 +555,95 @@
   color: var(--ui-text);
 }
 
+/** 与「公司」等字段同宽；地址区头部右侧为「增加地址+」胶囊按钮 */
+.addressModule {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.addressSlotsHeaderBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+/** 主列与删除列：仅槽位行 */
+.addressSlotsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 8px;
+  align-items: start;
+  width: 100%;
+}
+
+/** 单槽变体：无删除按钮，主列占满，避免预留 trash 列与 8px 间距，与「网站/公司」等输入同宽 */
+.addressSlotsGridSingle {
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 0;
+}
+
+.addressSlotMainCell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addressSlotMainCell > *:first-child {
+  width: 100%;
+  min-width: 0;
+}
+
+.addressSlotTrashCell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.addressSlotRemove {
+  flex-shrink: 0;
+  padding: 6px 8px;
+}
+
+.sidebarCompactLink {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 2px 0;
+}
+
+/** 地址模块「增加地址+」：黑色填充胶囊 */
+.addressAddPillButton {
+  min-height: 30px;
+  padding: 6px 14px;
+  border-radius: var(--ui-radius-pill);
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+}
+
+.addressAddPillButton:hover {
+  background: #2a2a2a;
+  border-color: #2a2a2a;
+  color: #fff;
+}
+
+.addressAddPillButton:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, #111 28%, transparent);
+}
+
 .controlShell {
   position: relative;
   display: inline-flex;
@@ -621,12 +710,62 @@
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);
   gap: 10px;
+  align-items: stretch;
+}
+
+/* 区号 Combobox：与 .controlShell / .inputGroupField 同高、同圆角（--ui-radius-control） */
+.phoneCodeTrigger :global([data-slot="combobox-input-group"]) {
+  display: flex;
+  min-height: 46px;
+  height: 100%;
+  align-items: stretch;
+}
+
+.phoneCodeTrigger :global([data-slot="combobox-input"]) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+}
+
+.phoneCodeTrigger :global([data-slot="input-control"]) {
+  flex: 1;
+  min-height: 46px;
+  border-radius: var(--ui-radius-control) !important;
+  border-color: color-mix(in srgb, var(--ui-border) 92%, transparent);
+  background: var(--ui-surface);
+  box-shadow: 0 10px 24px -22px rgba(15, 23, 42, 0.45);
+}
+
+.phoneCodeTrigger :global([data-slot="input-control"])::before {
+  border-radius: calc(var(--ui-radius-control) - 1px) !important;
+}
+
+.phoneCodeTrigger :global([data-slot="input-control"]:focus-within) {
+  border-color: color-mix(in srgb, var(--ui-border-strong) 72%, transparent);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+
+.phoneCodeTrigger :global([data-slot="input"]) {
+  box-sizing: border-box;
+  height: auto !important;
+  min-height: 42px;
+  padding-block: 11px !important;
+  line-height: 1.4 !important;
+  font-size: 14px;
+  color: var(--ui-text-strong);
+}
+
+.phoneCodeTrigger :global([data-slot="input"]::placeholder) {
+  color: color-mix(in srgb, var(--ui-text-muted) 78%, white);
 }
 
 .phoneCodeTrigger {
   width: 92px;
   min-width: 92px;
-  padding-inline: 12px;
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
 }
 
 .selectTrigger {

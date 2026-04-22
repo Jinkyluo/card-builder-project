@@ -427,6 +427,54 @@
   background: var(--ui-surface-soft);
 }
 
+/** 二维码「清除」：红色描边胶囊 */
+.qrClearOutlineButton {
+  min-height: 30px;
+  padding: 6px 14px;
+  border-radius: var(--ui-radius-pill);
+  border: 1px solid #c62828;
+  background: transparent;
+  color: #c62828;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: none;
+}
+
+.qrClearOutlineButton:hover {
+  background: color-mix(in srgb, #c62828 10%, transparent);
+  border-color: #b71c1c;
+  color: #b71c1c;
+}
+
+.qrClearOutlineButton:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, #c62828 22%, transparent);
+}
+
+/** 二维码「上传二维码」：与侧栏黑色胶囊一致 */
+.qrUploadPillButton {
+  min-height: 30px;
+  padding: 6px 14px;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  gap: 6px;
+  box-shadow: none;
+}
+
+.qrUploadPillButton:hover {
+  background: #2a2a2a;
+  border-color: #2a2a2a;
+  color: #fff;
+}
+
+.qrUploadPillButton:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, #111 28%, transparent);
+}
+
 .linkButton {
   border: 0;
   background: transparent;
@@ -575,6 +623,64 @@
 .controlShell:focus-within {
   border-color: color-mix(in srgb, var(--ui-border-strong) 72%, transparent);
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+
+/** 手输区：大圆角框 + 右下角「应用」（覆盖 .controlShell 的 inline-flex） */
+.qrManualShell {
+  display: block;
+  position: relative;
+}
+
+.qrManualTextarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 7.5rem;
+  resize: vertical;
+  margin: 0;
+  padding: 11px 14px 52px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.45;
+  font-family: inherit;
+  color: var(--ui-text-strong);
+  outline: none;
+}
+
+.qrManualTextarea::placeholder {
+  color: color-mix(in srgb, var(--ui-text-muted) 78%, white);
+}
+
+.qrManualTextarea:focus {
+  outline: none;
+}
+
+.qrApplyPillButton {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 2;
+  min-height: 28px;
+  padding: 5px 12px;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: none;
+}
+
+.qrApplyPillButton:hover {
+  background: #2a2a2a;
+  border-color: #2a2a2a;
+  color: #fff;
+}
+
+.qrApplyPillButton:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, #111 28%, transparent);
 }
 
 .control,
@@ -811,6 +917,21 @@
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+/** 上传与「清除」同一行：清除靠右，与下方 URL 输入框右缘对齐 */
+.qrUploadToolbar {
+  width: 100%;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.sidebarCompactLink {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 2px 0;
+  flex-shrink: 0;
 }
 
 .uploadButton {

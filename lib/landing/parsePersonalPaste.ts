@@ -1,10 +1,11 @@
 import {
   ADDRESS_PRESETS,
-  buildAddressText,
   CITY_ADDRESS,
-  DEFAULT_ADDRESS_PRESET,
-  type AddressPresetId,
 } from "@/lib/config/addressPresets";
+import {
+  finalizeShoplazzaATemplateFields,
+  slotsFromLandingMatchedCities,
+} from "@/lib/card/shoplazzaAddressSlots";
 import {
   inferPhoneRegionAndLocalNumber,
   normalizePhoneDigits,
@@ -23,40 +24,19 @@ export type ParsedPersonalPaste = {
   emailLocal: string;
   phone: string;
   phoneRegion: string;
-  /** 自由文本：地区 / Base */
+  /** 自由文本：地区 / Base（含标签行原文，模板 B 等仍用） */
   baseText: string;
+  /**
+   * 从 Base/扫描中识别出的城市 key（与 CITY_ADDRESS 键一致），按出现顺序、去重、最多 3 个。
+   */
+  matchedCities: string[];
+  /** 预置城市以外的片段；模板 A 写入末槽 `customText` 或追加到第三条 */
+  addressCustomNote: string;
 };
 
-function matchAddressPresetId(baseText: string): AddressPresetId {
-  const t = baseText.trim();
-  if (!t) return DEFAULT_ADDRESS_PRESET;
-  for (const p of ADDRESS_PRESETS) {
-    if (p.id === "none") continue;
-    if (t.includes(p.label) || p.label.includes(t)) {
-      return p.id;
-    }
-  }
-  for (const p of ADDRESS_PRESETS) {
-    if (p.id === "none") continue;
-    for (const city of p.cities) {
-      if (city && (t === city || t.includes(city) || city.includes(t))) {
-        return p.id;
-      }
-    }
-  }
-  for (const p of ADDRESS_PRESETS) {
-    if (p.id === "none") continue;
-    const addr = buildAddressText(p.id);
-    if (addr && t.split(/\s+/).some((w) => w.length > 1 && addr.includes(w))) {
-      return p.id;
-    }
-  }
-  return "none";
-}
-
-/**
- * 拆成「行」→ 逗号段 → 空格段；支持 `邮箱/城市`（斜杠仅在 @ 之后视为城市分隔）
+/** 拆成「行」→ 逗号段 → 空格段；支持 `邮箱/城市`（斜杠仅在 @ 之后视为城市分隔）
  * 例：罗劲华 Ron，13045678989，luojinghua@shoplazza.com/广州
+ * 例：熊悉丞 Lucas Xiong，… → 中文名与英文全名分为两个 token
  */
 function splitPasteTokens(raw: string): string[] {
   const tokens: string[] = [];
@@ -68,6 +48,7 @@ function splitPasteTokens(raw: string): string[] {
       .split(/[，,、;；|]+/u)
       .map((p) => p.trim())
       .filter(Boolean)) {
+      if (pushMixedChineseEnglishNameTokensTo(commaChunk, tokens)) continue;
       for (const spaceChunk of commaChunk
         .split(/\s+/u)
         .map((p) => p.trim())
@@ -102,10 +83,6 @@ function segmentLooksLikeCity(seg: string): boolean {
   return false;
 }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function standaloneCityTokenSet(): Set<string> {
   const out = new Set<string>();
   for (const k of Object.keys(CITY_ADDRESS)) out.add(k);
@@ -127,58 +104,64 @@ function isStandaloneCityToken(seg: string): boolean {
   return STANDALONE_CITY_TOKENS.has(t);
 }
 
-/**
- * Subotiz（模板 B）固定印刷地址，仅 `addressExtra` 可变：去掉纯城市/地区 token、
- * 行尾「…，深圳」式缀词，以及逗号分段中的纯城市段。
- */
-export function stripSubotizAddressExtra(raw: string): string {
-  const t = raw.trim();
-  if (!t) return "";
-  const cities = [...STANDALONE_CITY_TOKENS].sort((a, b) => b.length - a.length);
-  const linesOut: string[] = [];
-  for (const rawLine of t.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    if (isStandaloneCityToken(line)) continue;
-    let row = line;
-    for (const city of cities) {
-      row = row
-        .replace(
-          new RegExp(`(?:^|[\\s,，、])${escapeRegExp(city)}[。．，、]?$`, "u"),
-          "",
-        )
-        .trim()
-        .replace(/[,，、]\s*$/u, "")
-        .trim();
-    }
-    if (row && !isStandaloneCityToken(row)) linesOut.push(row);
+/** 单段是否可稳定归一为某个 CITY_ADDRESS 城市 key（避免长详细地址被误判） */
+function cityKeyFromRegionPart(part: string): string | null {
+  const t = part.replace(/[。．,，、;；]+$/u, "").trim();
+  if (!t || t.length > 18) return null;
+  if (isStandaloneCityToken(t)) return t;
+  const keys = Object.keys(CITY_ADDRESS).sort((a, b) => b.length - a.length);
+  for (const k of keys) {
+    if (t === k || t === `${k}市`) return k;
+    if (t.startsWith(k) && t.length <= k.length + 1) return k;
   }
-  let joined = linesOut.join("\n").trim();
-  if (/[，,]/u.test(joined)) {
-    const parts = joined.split(/[，,]/u).map((x) => x.trim()).filter(Boolean);
-    const kept = parts.filter((p) => !isStandaloneCityToken(p));
-    joined = kept.join("，").trim();
-  }
-  return joined;
+  return null;
 }
 
-/** 完成页切换模板：更新 `templateId`，切到 Subotiz 时顺带清理 `addressExtra` */
+/** 将 Base 一行按逗号等拆开：前两个可识别城市进列表，其余合并为自定义地址 */
+function parseRegionFieldValue(value: string): {
+  cities: string[];
+  custom: string;
+} {
+  const parts = value.split(/[,，、;；\n]+/u).map((p) => p.trim()).filter(Boolean);
+  const cities: string[] = [];
+  const customParts: string[] = [];
+  for (const part of parts) {
+    const k = cityKeyFromRegionPart(part);
+    if (k && cities.length < 3 && !cities.includes(k)) {
+      cities.push(k);
+      continue;
+    }
+    if (part) customParts.push(part);
+  }
+  return { cities, custom: customParts.join("，").trim() };
+}
+
+function collectCitiesFromScanForA(scan: string[]): string[] {
+  const out: string[] = [];
+  for (const seg of scan) {
+    if (
+      /中文名|英文名|职位|岗位名称|岗位|Base|地区|办公地|@|^\d[\d\s\-+]{6,}/i.test(
+        seg
+      )
+    ) {
+      continue;
+    }
+    if (!segmentLooksLikeCity(seg)) continue;
+    const k = cityKeyFromRegionPart(seg);
+    if (!k) continue;
+    if (out.length >= 3) break;
+    if (!out.includes(k)) out.push(k);
+  }
+  return out;
+}
+
+/** 完成页切换模板：更新 `templateId` */
 export function applyLandingDoneTemplateSwitch(
   prev: CardState,
   templateId: TemplateId,
 ): CardState {
   if (prev.templateId === templateId) return prev;
-  const next: CardState = { ...prev, templateId };
-  if (templateId === "B") {
-    next.templateFields = {
-      ...prev.templateFields,
-      B: {
-        ...prev.templateFields.B,
-        addressExtra: stripSubotizAddressExtra(prev.templateFields.B.addressExtra),
-      },
-    };
-  }
-  return next;
+  return { ...prev, templateId };
 }
 
 function segmentIsPhoneLike(seg: string): boolean {
@@ -190,6 +173,90 @@ function segmentIsEmailLike(seg: string): boolean {
   return /[^\s@]+@[^\s@]+\.[^\s@]+/.test(seg);
 }
 
+/** 逗号拆出的「Lucas」「Xiong」等应合并为全名，避免后续 token 被误判为岗位 */
+function inferConsecutiveEnglishAfterName(
+  scan: string[],
+  name: string
+): string {
+  const nameIdx = scan.findIndex((s) => s === name);
+  if (nameIdx < 0) return "";
+  const phoneEmailIdx = scan.findIndex(
+    (s, j) => j > nameIdx && (segmentIsPhoneLike(s) || segmentIsEmailLike(s))
+  );
+  const end = phoneEmailIdx >= 0 ? phoneEmailIdx : scan.length;
+  const words: string[] = [];
+  const jobishWord =
+    /^(?:project|projects|product|products|managers?|director|engineers?|sales|marketing|lead|head|officer|specialists?|consultants?|coordinators?|designers?|developers?|analysts?|vp|ceo|cto|cfo)s?$/i;
+
+  for (let i = nameIdx + 1; i < end; i++) {
+    const seg = scan[i].trim();
+    if (!seg) continue;
+    if (segmentLooksLikeCity(seg)) break;
+    if (/[\u4e00-\u9fff]/.test(seg)) break;
+
+    if (
+      /^[A-Za-z][A-Za-z\s.'\u00b7-]{0,120}$/u.test(seg) &&
+      !/\d/.test(seg)
+    ) {
+      const segsplit = seg.split(/\s+/).filter(Boolean);
+      const parts = segsplit.filter((p) => /^[A-Za-z][A-Za-z.'-]*$/u.test(p));
+      if (parts.length === segsplit.length && parts.length > 0) {
+        for (const p of parts) {
+          if (jobishWord.test(p)) {
+            if (words.length === 0) continue;
+            return words.join(" ");
+          }
+          words.push(p);
+          if (words.length >= 4) return words.join(" ");
+        }
+        if (parts.length > 1) return words.join(" ");
+        continue;
+      }
+    }
+
+    if (/^[A-Za-z][A-Za-z.'-]*$/u.test(seg)) {
+      if (jobishWord.test(seg)) {
+        if (words.length === 0) continue;
+        return words.join(" ");
+      }
+      words.push(seg);
+      if (words.length >= 4) return words.join(" ");
+      continue;
+    }
+    break;
+  }
+  return words.join(" ");
+}
+
+function pushMixedChineseEnglishNameTokensTo(
+  commaChunk: string,
+  tokens: string[]
+): boolean {
+  const m = commaChunk.match(
+    /^([\u4e00-\u9fff\u3007\ufa30-\ufa6a]{1,12})\s+([A-Za-z].*)$/u
+  );
+  if (!m) return false;
+  const en = m[2].trim();
+  if (!en || /[\u4e00-\u9fff]/.test(en) || segmentIsEmailLike(en)) return false;
+  if (!/^[A-Za-z][A-Za-z\s.'\u00b7-]{0,120}$/u.test(en) || /\d{5,}/.test(en)) {
+    return false;
+  }
+  tokens.push(m[1].trim());
+  tokens.push(en);
+  return true;
+}
+
+function englishNameTokensToSkip(englishName: string): Set<string> {
+  const s = new Set<string>();
+  const t = englishName.trim();
+  if (!t) return s;
+  s.add(t.toLowerCase());
+  for (const w of t.split(/\s+/)) {
+    if (w) s.add(w.toLowerCase());
+  }
+  return s;
+}
+
 /** 逗号顺序：… 岗位 … 电话 … 时，取电话前、排除姓名/英文名后的岗位片段 */
 function inferTitleFromScan(
   scan: string[],
@@ -197,6 +264,7 @@ function inferTitleFromScan(
   englishName: string
 ): string {
   const phoneIdx = scan.findIndex((seg) => segmentIsPhoneLike(seg));
+  const skipEnglish = englishNameTokensToSkip(englishName);
   const visit = (iBegin: number, iEnd: number): string => {
     for (let i = iBegin; i < iEnd; i++) {
       const t = scan[i].trim();
@@ -205,7 +273,7 @@ function inferTitleFromScan(
       if (segmentIsPhoneLike(t)) continue;
       if (segmentLooksLikeCity(t)) continue;
       if (name && t === name) continue;
-      if (englishName && t.toLowerCase() === englishName.toLowerCase()) continue;
+      if (skipEnglish.has(t.toLowerCase())) continue;
       if (/[\u4e00-\u9fff]{2,}/.test(t) && t.length <= 48) return t;
       if (
         /^[A-Za-z][A-Za-z\s.'/&\u00b7-]{2,52}$/.test(t) &&
@@ -246,6 +314,8 @@ export function parsePersonalPaste(
   let phone = "";
   let phoneRegion = defaultCardState().shared.phoneRegion;
   let baseText = "";
+  let matchedCities: string[] = [];
+  let addressCustomNote = "";
 
   for (const line of scan) {
     const mZh = line.match(/^中文名[：:]\s*(.+)$/);
@@ -268,7 +338,12 @@ export function parsePersonalPaste(
     const mBase = line.match(/^(Base|地区|办公地)[：:]\s*(.+)$/i);
     if (mBase) {
       const v = mBase[2].trim();
-      baseText = templateId === "B" ? stripSubotizAddressExtra(v) : v;
+      baseText = v;
+      if (templateId === "A") {
+        const pr = parseRegionFieldValue(v);
+        matchedCities = pr.cities;
+        addressCustomNote = pr.custom;
+      }
       continue;
     }
     const emailMatch = line.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
@@ -315,7 +390,7 @@ export function parsePersonalPaste(
       if (seg === name || seg.includes("@")) continue;
       if (segmentLooksLikeCity(seg)) continue;
       if (
-        /^[A-Za-z][A-Za-z\s.'-]{0,48}$/.test(seg.trim()) &&
+        /^[A-Za-z][A-Za-z\s.'-]{0,120}$/.test(seg.trim()) &&
         !/\d{5,}/.test(seg)
       ) {
         englishName = seg.trim();
@@ -324,10 +399,43 @@ export function parsePersonalPaste(
     }
   }
 
-  if (!baseText && templateId === "A") {
-    for (const seg of scan) {
-      if (segmentLooksLikeCity(seg)) {
-        baseText = seg.trim();
+  if (name) {
+    const merged = inferConsecutiveEnglishAfterName(scan, name);
+    if (merged) {
+      const p = englishName.trim();
+      if (!p || merged.length > p.length) {
+        englishName = merged;
+      }
+    }
+  }
+
+  if (templateId === "A" && matchedCities.length === 0) {
+    matchedCities = collectCitiesFromScanForA(scan);
+  }
+
+  if (templateId === "A" && !addressCustomNote.trim()) {
+    const rawLines = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (rawLines.length >= 2) {
+      const last = rawLines[rawLines.length - 1] ?? "";
+      if (
+        last &&
+        !/^中文名|英文名|职位|岗位名称|岗位|Base|地区|办公地[：:]|邮箱|^Email[：:]/i.test(
+          last
+        ) &&
+        !segmentIsEmailLike(last) &&
+        !segmentIsPhoneLike(last)
+      ) {
+        const { cities: lastCities, custom: lastCustom } =
+          parseRegionFieldValue(last);
+        if (!lastCities.length && lastCustom) {
+          addressCustomNote = lastCustom;
+        } else if (lastCities.length > 0 && matchedCities.length === 0) {
+          matchedCities = lastCities.slice(0, 3);
+          if (lastCustom) addressCustomNote = lastCustom;
+        }
       }
     }
   }
@@ -345,6 +453,8 @@ export function parsePersonalPaste(
     phone,
     phoneRegion,
     baseText,
+    matchedCities,
+    addressCustomNote,
   };
 }
 
@@ -356,22 +466,7 @@ export function buildCardStateFromLandingInput(options: {
 }): CardState {
   const base = defaultCardState();
   const parsed = parsePersonalPaste(options.pasteRaw, options.templateId);
-  const presetId: AddressPresetId =
-    options.templateId === "A"
-      ? matchAddressPresetId(parsed.baseText)
-      : (base.templateFields.A.addressPreset as AddressPresetId);
-
-  const addressExtra =
-    options.templateId === "A"
-      ? presetId === "none"
-        ? parsed.baseText.trim()
-        : ""
-      : stripSubotizAddressExtra(parsed.baseText.trim());
-
-  const addressPreset: AddressPresetId =
-    options.templateId === "A"
-      ? presetId
-      : (base.templateFields.A.addressPreset as AddressPresetId);
+  const customNote = parsed.addressCustomNote.trim();
 
   const englishTrim = parsed.englishName.trim();
 
@@ -397,20 +492,17 @@ export function buildCardStateFromLandingInput(options: {
       A: {
         ...base.templateFields.A,
         ...(options.templateId === "A"
-          ? {
-              addressPreset,
-              address: buildAddressText(addressPreset),
-              addressExtra,
-            }
+          ? finalizeShoplazzaATemplateFields({
+              ...base.templateFields.A,
+              addressSlots: slotsFromLandingMatchedCities(
+                parsed.matchedCities,
+                customNote,
+              ),
+            })
           : {}),
       },
       B: {
         ...base.templateFields.B,
-        ...(options.templateId === "B"
-          ? {
-              addressExtra,
-            }
-          : {}),
       },
     },
     qr: { payload: options.qrPayload },
