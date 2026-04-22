@@ -116,6 +116,20 @@ export function LandingFlow(): JSX.Element {
   /** 完成页仅切换模板时的过渡：结束后不写历史记录 */
   const landingTransitionSkipHistoryRef = useRef(false);
 
+  /** 完成页仍在 `/` 时，仅点 `/#welcome` 不会让 App Router 卸载本组件，phase 会一直是 done；需显式回到欢迎 */
+  const goToWelcome = useCallback(() => {
+    setPhase("welcome");
+    setDoneState(null);
+    setFlipped(false);
+    setTilt({ rx: 0, ry: 0 });
+    setGlare({ x: 50, y: 50 });
+    pushedDoneRef.current = false;
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/#welcome");
+    }
+    void router.replace("/#welcome");
+  }, [router]);
+
   const shopMini = useMemo(() => miniState("A"), []);
   const subMini = useMemo(() => miniState("B"), []);
 
@@ -458,7 +472,16 @@ export function LandingFlow(): JSX.Element {
               <span aria-hidden="true" className={studio.heroGuideLineRight} />
               <span aria-hidden="true" className={studio.heroGuideNodeLeft} />
               <span aria-hidden="true" className={studio.heroGuideNodeRight} />
-              <Link href="/#welcome" className={studio.brandLink}>
+              <Link
+                href="/#welcome"
+                prefetch={false}
+                className={studio.brandLink}
+                aria-label="返回欢迎页"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToWelcome();
+                }}
+              >
                 <Image
                   src="/design/logo-red.svg"
                   alt="Shoplazza"
