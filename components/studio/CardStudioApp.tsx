@@ -24,7 +24,7 @@ import {
 import type { CardState, TemplateId } from "@/lib/types/card";
 import {
   defaultCardState,
-  SHOPLAZZA_DEFAULT_COMPANY,
+  normalizeShoplazzaCompanyStored,
   SHOPLAZZA_DEFAULT_WEBSITE,
 } from "@/lib/types/card";
 import { loadDraft, saveDraft } from "@/lib/storage/idb";
@@ -118,8 +118,7 @@ function normalizeCardState(raw: unknown): CardState {
     : inferPhoneRegionAndLocalNumber(migrated.shared.phone ?? "");
 
   const a = migrated.templateFields.A;
-  const shoplazzaCompany =
-    a.company?.trim() || SHOPLAZZA_DEFAULT_COMPANY;
+  const shoplazzaCompany = normalizeShoplazzaCompanyStored(a.company);
   const shoplazzaWebsite =
     a.website?.trim() || SHOPLAZZA_DEFAULT_WEBSITE;
 

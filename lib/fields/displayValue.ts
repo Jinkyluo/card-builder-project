@@ -2,7 +2,6 @@ import { getEffectiveFields } from "@/lib/card/effectiveFields";
 import { formatPhoneForDisplay } from "@/lib/config/phoneRegions";
 import {
   DEFAULT_FIELD_VALUES,
-  SHOPLAZZA_DEFAULT_COMPANY,
   SHOPLAZZA_DEFAULT_WEBSITE,
   SUBOTIZ_DEFAULT_COMPANY,
   SUBOTIZ_DEFAULT_WEBSITE,
@@ -26,8 +25,7 @@ export function resolveFieldLayoutValue(state: CardState, key: string): string {
   }
 
   if (key === "company" && state.templateId === "A") {
-    const value = eff.company?.trim();
-    return value || SHOPLAZZA_DEFAULT_COMPANY;
+    return (eff.company ?? "").trim();
   }
   if (key === "website" && state.templateId === "A") {
     const value = eff.website?.trim();

@@ -11,7 +11,7 @@ import {
   defaultCardState,
   emailSuffixForTemplate,
   SCHEMA_VERSION,
-  SHOPLAZZA_DEFAULT_COMPANY,
+  normalizeShoplazzaCompanyStored,
   SHOPLAZZA_DEFAULT_WEBSITE,
   SUBOTIZ_DEFAULT_COMPANY,
   SUBOTIZ_DEFAULT_WEBSITE,
@@ -169,7 +169,7 @@ export function migrateLegacyCardState(raw: unknown): CardState {
       f.addressPreset || inferAddressPresetId(f.address ?? ""),
     );
     const rawA = {
-      company: f.company?.trim() || SHOPLAZZA_DEFAULT_COMPANY,
+      company: normalizeShoplazzaCompanyStored(f.company),
       website: f.website?.trim() || SHOPLAZZA_DEFAULT_WEBSITE,
       addressPreset,
       address: (f.address ?? "").trim() || buildAddressText(addressPreset),
