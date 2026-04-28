@@ -12,6 +12,11 @@ export const SCHEMA_VERSION = 2 as const;
 /** Subotiz 默认地址行、网站 */
 /** Shoplazza 模板默认「公司」行全文 */
 export const SHOPLAZZA_DEFAULT_COMPANY = "深圳店匠科技有限公司";
+/** Shoplazza 公司名下拉选项（英文） */
+export const SHOPLAZZA_COMPANY_EN = "Shenzhen Dianjiang Technology Co., Ltd.";
+/** 下拉「空」项在 Select 组件中的内部 value（存盘仍用空串） */
+export const SHOPLAZZA_COMPANY_SELECT_EMPTY_SENTINEL = "__shoplazza_company_empty__";
+
 export const SHOPLAZZA_DEFAULT_WEBSITE = "www.shoplazza.cn";
 
 export const SUBOTIZ_DEFAULT_COMPANY = "深圳市南山区彩讯科技大厦 27 楼";
@@ -25,6 +30,37 @@ function defaultShoplazzaAddress(): string {
 
 export function emailSuffixForTemplate(id: TemplateId): string {
   return id === "A" ? SHOPLAZZA_EMAIL_SUFFIX : SUBOTIZ_EMAIL_SUFFIX;
+}
+
+/** 将任意存盘值归一为三选一：中文公司 / 英文公司 / 空（旧稿自由输入归一为默认中文） */
+export function normalizeShoplazzaCompanyStored(
+  value: string | undefined | null,
+): string {
+  const t = (value ?? "").trim();
+  if (t === "") return "";
+  if (t === SHOPLAZZA_COMPANY_EN) return SHOPLAZZA_COMPANY_EN;
+  if (t === SHOPLAZZA_DEFAULT_COMPANY) return SHOPLAZZA_DEFAULT_COMPANY;
+  return SHOPLAZZA_DEFAULT_COMPANY;
+}
+
+export function shoplazzaCompanyToSelectValue(company: string): string {
+  const n = normalizeShoplazzaCompanyStored(company);
+  return n === "" ? SHOPLAZZA_COMPANY_SELECT_EMPTY_SENTINEL : n;
+}
+
+/** 供 Shoplazza 公司 Select 的 `items` / 选项渲染 */
+export const SHOPLAZZA_COMPANY_SELECT_ITEMS: { label: string; value: string }[] = [
+  { label: SHOPLAZZA_DEFAULT_COMPANY, value: SHOPLAZZA_DEFAULT_COMPANY },
+  { label: SHOPLAZZA_COMPANY_EN, value: SHOPLAZZA_COMPANY_EN },
+  { label: "空", value: SHOPLAZZA_COMPANY_SELECT_EMPTY_SENTINEL },
+];
+
+export function shoplazzaSelectValueToCompany(
+  v: string | null | undefined,
+): string {
+  if (v == null || v === SHOPLAZZA_COMPANY_SELECT_EMPTY_SENTINEL) return "";
+  if (v === SHOPLAZZA_COMPANY_EN) return SHOPLAZZA_COMPANY_EN;
+  return SHOPLAZZA_DEFAULT_COMPANY;
 }
 
 export type TemplateLocks = {
@@ -127,7 +163,7 @@ export const defaultCardState = (): CardState => ({
       address: defaultShoplazzaAddress(),
       addressExtra: "",
       addressSlots: [{ preset: DEFAULT_ADDRESS_PRESET, customText: "" }],
-      locks: { company: true },
+      locks: {},
     },
     B: {
       company: SUBOTIZ_DEFAULT_COMPANY,

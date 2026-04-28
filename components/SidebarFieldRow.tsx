@@ -44,6 +44,9 @@ import type { CardState, ShoplazzaAddressSlot } from "@/lib/types/card";
 import {
   DEFAULT_FIELD_VALUES,
   emailSuffixForTemplate,
+  SHOPLAZZA_COMPANY_SELECT_ITEMS,
+  shoplazzaCompanyToSelectValue,
+  shoplazzaSelectValueToCompany,
   SUBOTIZ_DEFAULT_WEBSITE,
 } from "@/lib/types/card";
 import { labelForField } from "@/lib/i18n/fieldLabels";
@@ -355,57 +358,41 @@ export function SidebarFieldRow({
       return <SubotizAddressPresetBlock state={state} setState={setState} />;
     }
 
-    const locks = state.templateFields.A.locks;
-    const companyValue = state.templateFields.A.company;
-
     return (
       <>
         <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
-        <InputGroup className={styles.inputGroupField}>
-          <InputGroupInput
-            className={styles.inputGroupInput}
-            placeholder={
-              DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? ""
-            }
-            value={companyValue ?? ""}
-            disabled={locks.company !== false}
-            onChange={(ev) => {
-              const v = ev.target.value;
-              setState((s) => ({
-                ...s,
-                templateFields: {
-                  ...s.templateFields,
-                  A: { ...s.templateFields.A, company: v },
+        <Select
+          aria-label="选择公司"
+          items={SHOPLAZZA_COMPANY_SELECT_ITEMS}
+          value={shoplazzaCompanyToSelectValue(state.templateFields.A.company)}
+          onValueChange={(v) =>
+            setState((s) => ({
+              ...s,
+              templateFields: {
+                ...s.templateFields,
+                A: {
+                  ...s.templateFields.A,
+                  company: shoplazzaSelectValueToCompany(v),
                 },
-              }));
-            }}
-          />
-          <InputGroupAddon align="inline-end" className={styles.inputGroupActionAddon}>
-            <button
-              type="button"
-              className={styles.inputGroupActionButton}
-              aria-label={`${locks.company !== false ? "解锁" : "锁定"}公司编辑`}
-              aria-pressed={locks.company === false}
-              onClick={() =>
-                setState((s) => ({
-                  ...s,
-                  templateFields: {
-                    ...s.templateFields,
-                    A: {
-                      ...s.templateFields.A,
-                      locks: {
-                        ...s.templateFields.A.locks,
-                        company: s.templateFields.A.locks.company === false,
-                      },
-                    },
-                  },
-                }))
-              }
-            >
-              {locks.company !== false ? <LockIcon /> : <LockOpenIcon />}
-            </button>
-          </InputGroupAddon>
-        </InputGroup>
+              },
+            }))
+          }
+        >
+          <SelectTrigger className={styles.selectTrigger}>
+            <SelectValue className={styles.selectValue} />
+          </SelectTrigger>
+          <SelectPopup className={styles.selectPopupList}>
+            {SHOPLAZZA_COMPANY_SELECT_ITEMS.map((item) => (
+              <SelectItem
+                key={item.value}
+                value={item.value}
+                className={styles.selectPopupItem}
+              >
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
       </>
     );
   }
