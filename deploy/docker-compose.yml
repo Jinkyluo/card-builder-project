@@ -1,0 +1,16 @@
+name: card-studio
+services:
+  card-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: card-studio
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - card-studio-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  card-studio-data:
