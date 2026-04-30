@@ -30,6 +30,14 @@ A Next.js-based business card builder for editing fixed card templates, previewi
 - `qrcode`
 - `jsqr`
 
+## 交付给同事
+
+源码包与安装说明在 **`delivery/`** 目录：将其中最新的 `card-studio-v*-source.zip` 与 `delivery/README.md` 一并提供即可。需要重新生成 zip 时，在仓库根目录执行：
+
+```bash
+bash scripts/package-delivery.sh
+```
+
 ## Local Development
 
 Install dependencies:
