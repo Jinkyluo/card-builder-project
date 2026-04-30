@@ -4,9 +4,10 @@ A Next.js-based business card builder for editing fixed card templates, previewi
 
 ## Current Status
 
-- Current release: `v1.0.0`
-- Active editable template: `Shoplazza 名片` (`Template A`)
-- `Template B` exists in code but is still disabled in the UI
+- **Release:** `v1.1.0`（与 `package.json`、`CHANGELOG.md` 对齐）
+- **主模板：** Shoplazza 名片（模板 A），完整可编辑
+- **模板 B（Subotiz）：** 代码与版式存在，界面仍为「搭建中」入口，避免误切换
+- **进度与版本记录：** 以根目录 **`CHANGELOG.md`** 为准（按版本罗列功能变更）
 
 ## Features
 
@@ -17,7 +18,8 @@ A Next.js-based business card builder for editing fixed card templates, previewi
 - Export a two-page vector PDF from the server (RGB for screen, or **DeviceCMYK** for print)
 - Persist draft state in IndexedDB
 - Support multi-region phone formatting and validation
-- Support address presets for the Shoplazza template
+- Shoplazza template: **company name** is chosen from a **dropdown** (three preset options or empty), styled like other selects; **address** uses preset slots with add/remove
+- Unified form controls (inputs, `Select`, visibility toggles) and landing/studio flows described in `CHANGELOG.md` v1.1
 
 ## Tech Stack
 
@@ -40,7 +42,13 @@ bash scripts/package-delivery.sh
 
 ## Local Development
 
-Install dependencies:
+Install dependencies (prefer lockfile reproduction):
+
+```bash
+npm ci
+```
+
+Or:
 
 ```bash
 npm install
@@ -80,16 +88,16 @@ public/fonts/           Embedded font assets
 
 The project uses semantic version tags in Git:
 
-- `v1.0.0` for the current initial deliverable
-- patch releases for fixes, e.g. `v1.0.1`
-- minor releases for backward-compatible features, e.g. `v1.1.0`
-- major releases for breaking changes, e.g. `v2.0.0`
+- Example tags: `v1.0.0`（首个对外交付）、`v1.1.0`（当前 `package.json` 对应 minor）
+- Patch releases for fixes, e.g. `v1.1.1`
+- Minor releases for backward-compatible features
+- Major releases for breaking changes, e.g. `v2.0.0`
 
-The release version should stay aligned across:
+Keep aligned across:
 
-- Git tag
-- `package.json` version
-- `CHANGELOG.md`
+- Git tag（发布打 tag 时）
+- `package.json` `version`
+- `CHANGELOG.md` 条目
 
 ## Notes
 
