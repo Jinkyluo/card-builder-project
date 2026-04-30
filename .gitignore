@@ -29,6 +29,9 @@ delivery/BUILD_INFO.txt
 .env*.local
 tsconfig.tsbuildinfo
 
+# sqlite runtime data
+/data/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

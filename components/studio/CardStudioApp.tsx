@@ -346,6 +346,11 @@ export function CardStudioApp() {
       anchor.click();
       URL.revokeObjectURL(url);
       setExportMenuOpen(false);
+      void fetch("/api/stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: colorSpace === "cmyk" ? "cmyk_pdf" : "rgb_pdf" }),
+      });
     } catch (error) {
       console.error("Failed to export PDF", error);
       window.alert(
@@ -378,6 +383,11 @@ export function CardStudioApp() {
       anchor.click();
       URL.revokeObjectURL(url);
       setExportMenuOpen(false);
+      void fetch("/api/stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "png" }),
+      });
     } catch (error) {
       console.error("Failed to export PNG", error);
       window.alert(
