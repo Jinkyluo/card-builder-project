@@ -336,6 +336,11 @@ export function LandingFlow(): JSX.Element {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+      void fetch("/api/stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: colorSpace === "cmyk" ? "cmyk_pdf" : "rgb_pdf" }),
+      });
       setExportMenuOpen(false);
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "导出失败");
@@ -364,6 +369,11 @@ export function LandingFlow(): JSX.Element {
       a.download = buildExportPngFilename(doneState);
       a.click();
       URL.revokeObjectURL(url);
+      void fetch("/api/stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "png" }),
+      });
       setExportMenuOpen(false);
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "导出 PNG 失败");
