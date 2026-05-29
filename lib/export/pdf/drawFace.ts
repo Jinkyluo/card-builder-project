@@ -58,6 +58,7 @@ function resolveBlockLeftMmForPdf(
     const nameBlock = layout.front.blocks.find((item) => item.key === "name");
     if (!nameBlock) return block.leftMm;
     const nameValue = resolveFieldDisplayValue(state, "name");
+    if (!nameValue) return nameBlock.leftMm;
     const nameWidthMm = ptToMm(measureBlockWidthPt(doc, nameBlock, nameValue));
     return nameBlock.leftMm + nameWidthMm + ENGLISH_NAME_GAP_MM;
   }
