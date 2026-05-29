@@ -38,7 +38,7 @@ export function recordExport(format: ExportFormat): void {
   db.prepare(`
     UPDATE export_stats
     SET count = count + 1,
-        last_exported_at = datetime('now', 'localtime')
+        last_exported_at = datetime('now', '+8 hours')
     WHERE format = ?
   `).run(format);
 }
