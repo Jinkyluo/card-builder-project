@@ -8,8 +8,8 @@ const FORMAT_LABELS: Record<string, string> = {
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
-  const stats = await getStats();
+export default function AdminPage() {
+  const stats = getStats();
   const total = stats.reduce((sum, row) => sum + row.count, 0);
 
   return (
