@@ -1,6 +1,4 @@
-import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
+import { createClient } from "@libsql/client";
 
 export type ExportFormat = "rgb_pdf" | "png" | "cmyk_pdf";
 
@@ -10,41 +8,48 @@ export type StatRow = {
   last_exported_at: string | null;
 };
 
-const DB_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DB_DIR, "stats.db");
+function getClient() {
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
 
-let _db: Database.Database | null = null;
+  if (url) {
+    return createClient({ url, authToken });
+  }
 
-export function getDb(): Database.Database {
-  if (_db) return _db;
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  _db = new Database(DB_PATH);
-  _db.exec(`
-    CREATE TABLE IF NOT EXISTS export_stats (
+  // local fallback for development
+  return createClient({ url: "file:data/stats.db" });
+}
+
+async function ensureTable() {
+  const db = getClient();
+  await db.batch([
+    `CREATE TABLE IF NOT EXISTS export_stats (
       format TEXT PRIMARY KEY,
       count INTEGER NOT NULL DEFAULT 0,
       last_exported_at TEXT
-    );
-    INSERT OR IGNORE INTO export_stats (format, count) VALUES
-      ('rgb_pdf', 0),
-      ('png', 0),
-      ('cmyk_pdf', 0);
-  `);
-  return _db;
+    )`,
+    `INSERT OR IGNORE INTO export_stats (format, count) VALUES ('rgb_pdf', 0)`,
+    `INSERT OR IGNORE INTO export_stats (format, count) VALUES ('png', 0)`,
+    `INSERT OR IGNORE INTO export_stats (format, count) VALUES ('cmyk_pdf', 0)`,
+  ], "write");
+  return db;
 }
 
-export function recordExport(format: ExportFormat): void {
-  const db = getDb();
-  db.prepare(`
-    UPDATE export_stats
-    SET count = count + 1,
-        last_exported_at = datetime('now', 'localtime')
-    WHERE format = ?
-  `).run(format);
+export async function recordExport(format: ExportFormat): Promise<void> {
+  const db = await ensureTable();
+  await db.execute({
+    sql: `UPDATE export_stats
+          SET count = count + 1,
+              last_exported_at = datetime('now', 'localtime')
+          WHERE format = ?`,
+    args: [format],
+  });
 }
 
-export function getStats(): StatRow[] {
-  return getDb()
-    .prepare("SELECT format, count, last_exported_at FROM export_stats ORDER BY format")
-    .all() as StatRow[];
+export async function getStats(): Promise<StatRow[]> {
+  const db = await ensureTable();
+  const result = await db.execute(
+    "SELECT format, count, last_exported_at FROM export_stats ORDER BY format"
+  );
+  return result.rows as unknown as StatRow[];
 }

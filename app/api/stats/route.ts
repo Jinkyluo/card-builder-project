@@ -5,7 +5,7 @@ const VALID_FORMATS: ExportFormat[] = ["rgb_pdf", "png", "cmyk_pdf"];
 
 export async function GET() {
   try {
-    const stats = getStats();
+    const stats = await getStats();
     return NextResponse.json({ stats });
   } catch (err) {
     console.error("Failed to read stats", err);
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     if (!VALID_FORMATS.includes(format)) {
       return NextResponse.json({ error: "无效的格式" }, { status: 400 });
     }
-    recordExport(format);
+    await recordExport(format);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Failed to record export", err);
