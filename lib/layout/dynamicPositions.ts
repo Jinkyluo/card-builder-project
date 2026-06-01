@@ -1,6 +1,6 @@
 import { getEffectiveFields } from "@/lib/card/effectiveFields";
 import type { CardState } from "@/lib/types/card";
-import type { CardFieldBlock, TemplateLayout } from "@/lib/layout/cardLayout";
+import { getAddressGroupBlocks, type CardFieldBlock, type TemplateLayout } from "@/lib/layout/cardLayout";
 import { resolveFieldLayoutValue } from "@/lib/fields/displayValue";
 
 const CSS_PX_PER_MM = 96 / 25.4;
@@ -100,9 +100,7 @@ export function resolveBlockLeftMm(
     return block.leftMm;
   }
 
-  const companyBlock = layout.front.blocks.find((item) => item.key === "company");
-  const addressBlock = layout.front.blocks.find((item) => item.key === "address");
-  const addressExtraBlock = layout.front.blocks.find((item) => item.key === "addressExtra");
+  const { company: companyBlock, address: addressBlock, addressExtra: addressExtraBlock } = getAddressGroupBlocks(layout);
   if (!companyBlock || !addressBlock || !addressExtraBlock) {
     return block.leftMm;
   }

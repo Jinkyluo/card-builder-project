@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import {
   CARD_HEIGHT_MM,
   CARD_WIDTH_MM,
+  getAddressGroupBlocks,
   getTemplate,
   type TemplateLayout,
 } from "@/lib/layout/cardLayout";
@@ -35,6 +36,16 @@ function layoutPt(n: number): string {
 }
 
 const CSS_PX_PER_MM = 96 / 25.4;
+
+/** 模块级单例 Canvas Context，避免每次度量都创建 / 销毁 Canvas */
+let _measureCtx: CanvasRenderingContext2D | null = null;
+function getMeasureCtx(): CanvasRenderingContext2D | null {
+  if (_measureCtx) return _measureCtx;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  _measureCtx = canvas.getContext("2d");
+  return _measureCtx;
+}
 
 /** 字段 key → 用于 Canvas 测量的字体串（与 SSR 渲染 fontFamily 关键字一致） */
 function canvasFontFamilyForBlockFamily(
@@ -69,20 +80,15 @@ function useShoplazzaAddressGroupLeftMm(
       return;
     }
     const qrPos = layout.qr.front;
-    const companyBlock = layout.front.blocks.find((b) => b.key === "company");
-    const addressBlock = layout.front.blocks.find((b) => b.key === "address");
-    const extraBlock = layout.front.blocks.find((b) => b.key === "addressExtra");
+    const { company: companyBlock, address: addressBlock, addressExtra: extraBlock } = getAddressGroupBlocks(layout);
     if (!qrPos || !companyBlock || !addressBlock || !extraBlock) {
       setLeftMm(null);
       return;
     }
-    if (typeof document === "undefined") return;
-
     let cancelled = false;
     const compute = () => {
       if (cancelled) return;
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      const ctx = getMeasureCtx();
       if (!ctx) return;
 
       const measureMaxLineWidthPx = (

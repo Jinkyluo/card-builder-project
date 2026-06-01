@@ -15,12 +15,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { format?: string };
-    const format = body.format as ExportFormat;
-    if (!VALID_FORMATS.includes(format)) {
+    const body = (await request.json()) as { format?: unknown };
+    const format = body.format;
+    if (typeof format !== "string" || !VALID_FORMATS.includes(format as ExportFormat)) {
       return NextResponse.json({ error: "无效的格式" }, { status: 400 });
     }
-    recordExport(format);
+    recordExport(format as ExportFormat);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Failed to record export", err);

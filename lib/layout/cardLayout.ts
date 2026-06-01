@@ -283,3 +283,17 @@ export function getTemplate(id: "A" | "B"): TemplateLayout {
 export function mmToPt(mm: number): number {
   return (mm * 72) / 25.4;
 }
+
+/** 获取正面地址组的三个布局块（company / address / addressExtra） */
+export function getAddressGroupBlocks(layout: TemplateLayout): {
+  company: CardFieldBlock | undefined;
+  address: CardFieldBlock | undefined;
+  addressExtra: CardFieldBlock | undefined;
+} {
+  const blocks = layout.front.blocks;
+  return {
+    company: blocks.find((b) => b.key === "company"),
+    address: blocks.find((b) => b.key === "address"),
+    addressExtra: blocks.find((b) => b.key === "addressExtra"),
+  };
+}

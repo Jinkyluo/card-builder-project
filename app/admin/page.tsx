@@ -1,5 +1,20 @@
 import { getStats } from "@/lib/db/sqlite";
 
+function formatDateTime(raw: string | null): string {
+  if (!raw) return "—";
+  const date = new Date(raw.replace(" ", "T") + "+08:00");
+  if (isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Shanghai",
+  }).format(date);
+}
+
 const FORMAT_LABELS: Record<string, string> = {
   rgb_pdf: "电子版 PDF",
   png: "电子版 PNG",
@@ -37,7 +52,7 @@ export default function AdminPage() {
                     {row.count.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-right text-gray-400">
-                    {row.last_exported_at ?? "—"}
+                    {formatDateTime(row.last_exported_at)}
                   </td>
                 </tr>
               ))}

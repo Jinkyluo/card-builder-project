@@ -1,6 +1,7 @@
 import type PDFDocument from "pdfkit";
 import type { CardState } from "@/lib/types/card";
 import {
+  getAddressGroupBlocks,
   getTemplate,
   mmToPt,
   type CardFieldBlock,
@@ -68,9 +69,7 @@ function resolveBlockLeftMmForPdf(
   }
 
   const qrPos = layout.qr.front;
-  const companyBlock = layout.front.blocks.find((item) => item.key === "company");
-  const addressBlock = layout.front.blocks.find((item) => item.key === "address");
-  const addressExtraBlock = layout.front.blocks.find((item) => item.key === "addressExtra");
+  const { company: companyBlock, address: addressBlock, addressExtra: addressExtraBlock } = getAddressGroupBlocks(layout);
   if (!qrPos || !companyBlock || !addressBlock || !addressExtraBlock) {
     return block.leftMm;
   }

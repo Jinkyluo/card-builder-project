@@ -60,26 +60,9 @@ import {
   DrawerPopup,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { useNarrowLayoutForExport } from "@/hooks/use-media-query";
 
 const DEBOUNCE_MS = 400;
-
-/** 与 `page.module.css` 中底栏固定布局断点一致 */
-const NARROW_EXPORT_MEDIA = "(max-width: 1024px)";
-
-/**
- * 仅在客户端 effect 中读取 matchMedia，避免 SSR / 水合阶段触碰 window 导致异常或阻塞。
- */
-function useNarrowLayoutForExport(): boolean {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(NARROW_EXPORT_MEDIA);
-    const sync = () => setNarrow(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return narrow;
-}
 
 /** 模板切换说明已确认后写入 localStorage，同浏览器仅首次再弹窗 */
 const TEMPLATE_SWITCH_CONFIRM_STORAGE_KEY =
@@ -371,7 +354,7 @@ export function CardStudioApp() {
       }
       const { compositePreviewFacesToPngBlob } = await import(
         "@/lib/export/png/compositePreviewPng"
-      );
+      ).catch(() => { throw new Error("PNG 导出模块加载失败，请刷新页面后重试。"); });
       const blob = await compositePreviewFacesToPngBlob(front, back, {
         gapPx: 0,
         outputWidthPx: 1920,

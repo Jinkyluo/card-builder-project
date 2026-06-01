@@ -94,3 +94,7 @@ export function useMediaQuery(
 export function useIsMobile(): boolean {
   return useMediaQuery("max-md");
 }
+
+export function useNarrowLayoutForExport(): boolean {
+  return useMediaQuery("(max-width: 1024px)");
+}

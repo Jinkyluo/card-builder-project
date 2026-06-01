@@ -58,23 +58,10 @@ import {
 import { cn } from "@/lib/utils";
 import studio from "@/app/studio/page.module.css";
 import styles from "./landing.module.css";
-
-const NARROW_EXPORT_MEDIA = "(max-width: 1024px)";
+import { useNarrowLayoutForExport } from "@/hooks/use-media-query";
 
 function historyEntryTemplateLabel(templateId: TemplateId): "Shoplazza" | "Subotiz" {
   return templateId === "A" ? "Shoplazza" : "Subotiz";
-}
-
-function useNarrowLayoutForExport(): boolean {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(NARROW_EXPORT_MEDIA);
-    const sync = () => setNarrow(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return narrow;
 }
 
 type Phase = "welcome" | "transition" | "done";
@@ -358,7 +345,7 @@ export function LandingFlow(): JSX.Element {
       if (!front || !back) throw new Error("预览未就绪");
       const { compositePreviewFacesToPngBlob } = await import(
         "@/lib/export/png/compositePreviewPng"
-      );
+      ).catch(() => { throw new Error("PNG 导出模块加载失败，请刷新页面后重试。"); });
       const blob = await compositePreviewFacesToPngBlob(front, back, {
         gapPx: 0,
         outputWidthPx: 1920,
