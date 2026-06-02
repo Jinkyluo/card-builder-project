@@ -17,11 +17,22 @@ export function resolveFieldLayoutValue(state: CardState, key: string): string {
   if (key === "phone") {
     const phone = eff.phone || DEFAULT_FIELD_VALUES.phone;
     const dialCustom = (eff.phoneDialCodeCustom ?? "").trim();
-    return formatPhoneForDisplay(
+    const firstLine = formatPhoneForDisplay(
       eff.phoneRegion,
       phone,
       dialCustom.length > 0 ? dialCustom : undefined,
     );
+    const extraPhones = state.shared.extraPhones ?? [];
+    if (extraPhones.length === 0) return firstLine;
+    const extraLines = extraPhones.map((ep) => {
+      const epDialCustom = (ep.phoneDialCodeCustom ?? "").trim();
+      return formatPhoneForDisplay(
+        ep.phoneRegion,
+        ep.phone,
+        epDialCustom.length > 0 ? epDialCustom : undefined,
+      );
+    });
+    return [firstLine, ...extraLines].join("\n");
   }
 
   if (key === "company" && state.templateId === "A") {

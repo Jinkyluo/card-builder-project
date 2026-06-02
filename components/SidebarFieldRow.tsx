@@ -40,7 +40,7 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { parseEmailLocal } from "@/lib/card/effectiveFields";
-import type { CardState, ShoplazzaAddressSlot } from "@/lib/types/card";
+import type { CardState, ExtraPhone, ShoplazzaAddressSlot } from "@/lib/types/card";
 import {
   DEFAULT_FIELD_VALUES,
   emailSuffixForTemplate,
@@ -89,7 +89,29 @@ export function SidebarFieldRow({
 
     return (
       <>
-        <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
+        <div className={styles.addressSlotsHeaderBar}>
+          <span className={styles.fieldLabel}>{labelForField(key, state.templateId)}</span>
+          {(state.shared.extraPhones ?? []).length < 2 && (
+            <button
+              type="button"
+              className={cn(styles.buttonBase, styles.addressAddPillButton)}
+              onClick={() =>
+                setState((s) => ({
+                  ...s,
+                  shared: {
+                    ...s.shared,
+                    extraPhones: [
+                      ...(s.shared.extraPhones ?? []),
+                      { phoneRegion: DEFAULT_PHONE_REGION, phoneDialCodeCustom: "", phone: "" },
+                    ],
+                  },
+                }))
+              }
+            >
+              增加电话+
+            </button>
+          )}
+        </div>
         <div className={styles.phoneRow}>
           <div className={styles.phoneCodeTrigger}>
             <Combobox<string>
@@ -229,6 +251,12 @@ export function SidebarFieldRow({
         {phoneError && (
           <p className={cn(styles.helperText, styles.errorText)}>{phoneError}</p>
         )}
+        <ExtraPhoneBlock
+          extraPhones={state.shared.extraPhones ?? []}
+          onChange={(phones) =>
+            setState((s) => ({ ...s, shared: { ...s.shared, extraPhones: phones } }))
+          }
+        />
       </>
     );
   }
@@ -452,7 +480,7 @@ export function SidebarFieldRow({
           placeholder={
             DEFAULT_FIELD_VALUES[key as keyof typeof DEFAULT_FIELD_VALUES] ?? ""
           }
-          value={state.shared[key as keyof typeof state.shared] ?? ""}
+          value={(state.shared[key as keyof typeof state.shared] as string) ?? ""}
           onChange={(ev) =>
             setState((s) => ({
               ...s,
@@ -471,6 +499,134 @@ function nextAvailableSlotPreset(usedNonNone: Set<AddressPresetId>): AddressPres
     if (!usedNonNone.has(p.id)) return p.id;
   }
   return "none";
+}
+
+function ExtraPhoneBlock({
+  extraPhones,
+  onChange,
+}: {
+  extraPhones: ExtraPhone[];
+  onChange: (phones: ExtraPhone[]) => void;
+}) {
+  return (
+    <div className={styles.extraPhonesModule}>
+      {extraPhones.map((ep, index) => {
+        const regionId = ep.phoneRegion ?? DEFAULT_PHONE_REGION;
+        const customDialRaw = ep.phoneDialCodeCustom ?? "";
+        const trimCustom = customDialRaw.trim();
+        const presetDial = getPhoneRegionOption(regionId).dialCode;
+        const comboboxValue = trimCustom ? PHONE_COMBO_CUSTOM_VALUE : regionId;
+        const dialInputValue = trimCustom ? customDialRaw : presetDial;
+
+        const updatePhone = (patch: Partial<ExtraPhone>) => {
+          onChange(extraPhones.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+        };
+
+        return (
+          <Fragment key={index}>
+            <div className={styles.phoneRow}>
+              <div className={styles.phoneCodeTrigger}>
+                <Combobox<string>
+                  autoComplete="off"
+                  filter={null}
+                  filteredItems={PHONE_COMBO_ITEM_IDS}
+                  items={PHONE_COMBO_ROOT_ITEMS}
+                  itemToStringLabel={(id) =>
+                    id === PHONE_COMBO_CUSTOM_VALUE
+                      ? customDialRaw
+                      : getPhoneRegionOption(id).dialCode
+                  }
+                  inputValue={dialInputValue}
+                  onInputValueChange={(newInput) => {
+                    const byDial = PHONE_REGION_OPTIONS.find((o) => o.dialCode === newInput);
+                    if (byDial) {
+                      updatePhone({ phoneRegion: byDial.id, phoneDialCodeCustom: "" });
+                      return;
+                    }
+                    const preset = getPhoneRegionOption(regionId).dialCode;
+                    if (newInput === preset) {
+                      updatePhone({ phoneDialCodeCustom: "" });
+                      return;
+                    }
+                    updatePhone({ phoneDialCodeCustom: newInput });
+                  }}
+                  value={comboboxValue}
+                  onValueChange={(nextRegion) => {
+                    if (typeof nextRegion !== "string") return;
+                    if (nextRegion === PHONE_COMBO_CUSTOM_VALUE) return;
+                    updatePhone({ phoneRegion: nextRegion, phoneDialCodeCustom: "" });
+                  }}
+                >
+                  <ComboboxInput
+                    aria-label={`电话国际区号 ${index + 2}`}
+                    placeholder="选择或输入区号"
+                    showClear={false}
+                    onBlur={() => {
+                      const raw = (ep.phoneDialCodeCustom ?? "").trim();
+                      if (!raw) { updatePhone({ phoneDialCodeCustom: "" }); return; }
+                      const match = matchPhoneRegionFromDialInput(raw);
+                      if (match) {
+                        updatePhone({ phoneRegion: match.id, phoneDialCodeCustom: "" });
+                        return;
+                      }
+                      const norm = normalizeDialCodeInput(raw);
+                      updatePhone({ phoneDialCodeCustom: norm || "" });
+                    }}
+                  />
+                  <ComboboxPopup align="start" sideOffset={4}>
+                    <ComboboxList className={styles.selectPopupList}>
+                      {(rid: string) => {
+                        if (rid === PHONE_COMBO_CUSTOM_VALUE) {
+                          return (
+                            <ComboboxItem
+                              key={rid}
+                              aria-hidden
+                              className="sr-only h-0 min-h-0 overflow-hidden p-0 opacity-0"
+                              value={rid}
+                            >
+                              {' '}
+                            </ComboboxItem>
+                          );
+                        }
+                        const option = getPhoneRegionOption(rid);
+                        return (
+                          <ComboboxItem
+                            key={rid}
+                            className={styles.selectPopupItem}
+                            value={rid}
+                          >
+                            {option.dialCode} {option.label}
+                          </ComboboxItem>
+                        );
+                      }}
+                    </ComboboxList>
+                  </ComboboxPopup>
+                </Combobox>
+              </div>
+              <div className={styles.controlShell}>
+                <input
+                  className={styles.control}
+                  placeholder={formatLocalPhoneForDisplay(regionId, DEFAULT_FIELD_VALUES.phone)}
+                  value={formatLocalPhoneForDisplay(regionId, ep.phone)}
+                  onChange={(ev) =>
+                    updatePhone({ phone: normalizePhoneDigits(ev.target.value) })
+                  }
+                />
+              </div>
+              <button
+                type="button"
+                className={cn(styles.buttonBase, styles.addressSlotRemove)}
+                aria-label={`删除电话 ${index + 2}`}
+                onClick={() => onChange(extraPhones.filter((_, i) => i !== index))}
+              >
+                <Trash2 size={16} aria-hidden />
+              </button>
+            </div>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
 }
 
 export function ShoplazzaAddressPresetBlock({

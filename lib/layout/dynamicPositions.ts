@@ -6,6 +6,13 @@ import { resolveFieldLayoutValue } from "@/lib/fields/displayValue";
 const CSS_PX_PER_MM = 96 / 25.4;
 const ENGLISH_NAME_GAP_PX = 6;
 const COMPANY_ADDRESS_LINE_PITCH_MM = 47.02 - 43.7;
+/** phone(18.55) → email(22.04) 行间距 */
+const PHONE_LINE_PITCH_MM = 22.04 - 18.55;
+
+/** 额外电话数量（第 2、3 个）；旧数据无此字段时返回 0 */
+function extraPhoneCount(state: CardState): number {
+  return state.shared.extraPhones?.length ?? 0;
+}
 
 /** 与 Shoplazza（A）同版式的模板（含 Subotiz B） */
 function isShoplazzaLayout(layout: TemplateLayout): boolean {
@@ -165,6 +172,11 @@ export function resolveBlockTopMm(
     }
   }
 
+  // email / website 随额外电话数量向下偏移
+  if (block.key === "email" || block.key === "website") {
+    return block.topMm + extraPhoneCount(state) * PHONE_LINE_PITCH_MM;
+  }
+
   return block.topMm;
 }
 
@@ -179,6 +191,10 @@ export function resolveBlockLineHeightPt(
     (block.key === "company" || block.key === "address" || block.key === "addressExtra")
   ) {
     return (COMPANY_ADDRESS_LINE_PITCH_MM * 72) / 25.4;
+  }
+
+  if (isShoplazzaLayout(layout) && side === "front" && block.key === "phone") {
+    return (PHONE_LINE_PITCH_MM * 72) / 25.4;
   }
 
   return undefined;

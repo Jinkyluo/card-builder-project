@@ -97,6 +97,14 @@ export type SubotizTemplateFields = {
   locks: TemplateLocks;
 };
 
+/** 额外电话号码（第 2、3 个） */
+export type ExtraPhone = {
+  phoneRegion: string;
+  /** 手动填写的国际区号（如 +44）；空则使用 `phoneRegion` 对应预置区号 */
+  phoneDialCodeCustom?: string;
+  phone: string;
+};
+
 /** 两模板共用的个人信息（切换模板时保留） */
 export type SharedPersonalFields = {
   name: string;
@@ -106,6 +114,8 @@ export type SharedPersonalFields = {
   /** 手动填写的国际区号（如 +44）；空则使用 `phoneRegion` 对应预置区号 */
   phoneDialCodeCustom?: string;
   phone: string;
+  /** 第 2、3 个电话号码（最多 2 个，合计不超过 3 个） */
+  extraPhones?: ExtraPhone[];
   /** 仅本地部分，不含 @ */
   emailLocal: string;
   contactNote: string;
@@ -149,6 +159,7 @@ export const defaultCardState = (): CardState => ({
     phoneRegion: DEFAULT_PHONE_REGION,
     phoneDialCodeCustom: "",
     phone: "",
+    extraPhones: [],
     emailLocal: "",
     contactNote: "",
     tagline: "让协作更简单",
